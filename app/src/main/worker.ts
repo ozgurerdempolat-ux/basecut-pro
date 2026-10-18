@@ -11,7 +11,7 @@ import type { ExportRequest, MediaAssets, ProbeResult, WorkerRequest, WorkerResp
 import { FFMPEG, FFPROBE } from './ffbin';
 
 const port = (process as unknown as { parentPort: { on(e: 'message', cb: (m: { data: WorkerRequest }) => void): void; postMessage(m: WorkerResponse): void } }).parentPort;
-const CACHE = process.env.KURGU_CACHE ?? join(process.cwd(), '.kurgu-cache');
+const CACHE = process.env.KURGU_CACHE ?? join(process.cwd(), '.basecut-cache');
 mkdirSync(CACHE, { recursive: true });
 
 const running = new Map<string, ChildProcess>();

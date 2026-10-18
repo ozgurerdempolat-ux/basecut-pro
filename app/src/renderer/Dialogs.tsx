@@ -137,8 +137,8 @@ function ShortcutsDialog() {
 
 function AboutDialog() {
   return (
-    <Modal title="Kurgu hakkında" onClose={close} footer={<button className="btn primary" onClick={close}>Kapat</button>}>
-      <div><b>Kurgu</b> 0.1 — ücretsiz, hafif, profesyonel video kurgu.</div>
+    <Modal title="BaseCut Pro hakkında" onClose={close} footer={<button className="btn primary" onClick={close}>Kapat</button>}>
+      <div><b>BaseCut Pro</b> 0.1 — ücretsiz, hafif, profesyonel video kurgu.</div>
       <div style={{ color: 'var(--text-2)' }}>The Base Social tarafından geliştirilmektedir. Video işleme FFmpeg (LGPL/GPL) ile yapılır.</div>
     </Modal>
   );
@@ -152,7 +152,7 @@ function RecoveryDialog({ data }: { data: { project: Project; savedAt: number } 
         <button className="btn" onClick={() => { void window.kurgu.clearRecovery(); close(); }}>Yoksay</button>
         <button className="btn primary" onClick={() => { loadProject(data.project, null); useStore.setState({ dirty: true }); close(); }}>Geri yükle</button>
       </>}>
-      <div>Kurgu son oturumda düzgün kapanmadı. <b>{data.project.name}</b> projesinin {when} tarihli hali her düzenlemede diske yazılmıştı.</div>
+      <div>BaseCut Pro son oturumda düzgün kapanmadı. <b>{data.project.name}</b> projesinin {when} tarihli hali her düzenlemede diske yazılmıştı.</div>
       <div style={{ color: 'var(--text-2)' }}>Kaldığınız yerden, son yaptığınız düzenlemeye kadar devam edebilirsiniz.</div>
     </Modal>
   );

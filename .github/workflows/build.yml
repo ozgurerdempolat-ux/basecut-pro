@@ -1,0 +1,69 @@
+name: BaseCut Pro — derle ve yayınla
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: app } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: app/package-lock.json }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, name: Windows, arch: x64, cmd: 'npx electron-builder --win --x64' }
+          - { os: macos-14, name: Mac-AppleSilicon, arch: arm64, cmd: 'npx electron-builder --mac --arm64' }
+          # Intel Mac build from an Apple Silicon runner: ffmpeg-static downloads the x64 binary via npm_config_arch
+          - { os: macos-14, name: Mac-Intel, arch: x64, cmd: 'npx electron-builder --mac --x64' }
+    runs-on: ${{ matrix.os }}
+    defaults: { run: { working-directory: app } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: app/package-lock.json }
+      - run: npm ci
+        env: { npm_config_arch: '${{ matrix.arch }}' }
+      - run: npx electron-vite build
+      - run: ${{ matrix.cmd }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BaseCut-Pro-${{ matrix.name }}
+          path: |
+            app/release/*.exe
+            app/release/*.dmg
+            app/release/*.zip
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          name: BaseCut Pro ${{ github.ref_name }}
+          body: |
+            **Windows:** `...Windows-Kurulum.exe` (kurulum) veya `...Tasinabilir.exe` (kurulumsuz, USB'den çalışır)
+            **Mac (M1/M2/M3/M4):** `...Mac-arm64.dmg`  ·  **Mac (Intel):** `...Mac-x64.dmg`
+            İlk açılışta Mac'te: uygulamaya sağ tıklayın → Aç. Windows'ta: "Ek bilgi" → "Yine de çalıştır".

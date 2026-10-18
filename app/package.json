@@ -1,7 +1,7 @@
 {
-  "name": "kurgu",
+  "name": "basecut",
   "version": "0.1.0",
-  "description": "Ücretsiz, hafif, profesyonel video kurgu programı",
+  "description": "BaseCut Pro \u2014 \u00fccretsiz, hafif, profesyonel video kurgu program\u0131. The Base Social",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -26,17 +26,118 @@
     "playwright": "^1.64.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zustand": "^5.0.15",
+    "immer": "^11.1.21",
+    "nanoid": "^6.0.2"
   },
   "dependencies": {
     "ffmpeg-static": "^5.3.0",
-    "ffprobe-static": "^3.1.0",
-    "immer": "^11.1.21",
-    "nanoid": "^6.0.2",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1",
-    "zustand": "^5.0.15"
+    "ffprobe-static": "^3.1.0"
   },
-  "productName": "Kurgu",
-  "type": "commonjs"
+  "productName": "BaseCut Pro",
+  "type": "commonjs",
+  "build": {
+    "appId": "com.thebasesocial.basecut",
+    "productName": "BaseCut Pro",
+    "copyright": "\u00a9 2026 The Base Social",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**",
+      "package.json",
+      "!**/*.map"
+    ],
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**",
+      "node_modules/ffprobe-static/**"
+    ],
+    "fileAssociations": [
+      {
+        "ext": "basecut",
+        "name": "BaseCut Projesi",
+        "role": "Editor"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "BaseCut-Pro-${version}-Windows-Kurulum.${ext}",
+      "files": [
+        "!node_modules/ffprobe-static/bin/darwin/**",
+        "!node_modules/ffprobe-static/bin/linux/**",
+        "!node_modules/ffprobe-static/bin/*/ia32/**",
+        "!node_modules/ffmpeg-static/*.README"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "BaseCut Pro"
+    },
+    "portable": {
+      "artifactName": "BaseCut-Pro-${version}-Windows-Tasinabilir.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg"
+        },
+        {
+          "target": "zip"
+        }
+      ],
+      "category": "public.app-category.video",
+      "artifactName": "BaseCut-Pro-${version}-Mac-${arch}.${ext}",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "identity": null,
+      "files": [
+        "!node_modules/ffprobe-static/bin/win32/**",
+        "!node_modules/ffprobe-static/bin/linux/**"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "AudioVideo",
+      "artifactName": "BaseCut-Pro-${version}-Linux-${arch}.${ext}",
+      "files": [
+        "!node_modules/ffprobe-static/bin/win32/**",
+        "!node_modules/ffprobe-static/bin/darwin/**",
+        "!node_modules/ffprobe-static/bin/*/ia32/**"
+      ]
+    },
+    "publish": null,
+    "compression": "maximum",
+    "electronLanguages": [
+      "tr",
+      "en-US",
+      "en-GB",
+      "de",
+      "fr",
+      "es",
+      "ar",
+      "ru"
+    ]
+  }
 }

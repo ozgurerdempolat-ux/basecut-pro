@@ -8,7 +8,7 @@ import type { Project } from '../core/model';
 import type { ExportRequest, JobProgress, SystemInfo, WorkerRequest, WorkerResponse } from '../shared/ipc';
 import { FFMPEG } from './ffbin';
 
-const APP_NAME = 'Kurgu';
+const APP_NAME = 'BaseCut Pro';
 app.setName(APP_NAME);
 if (process.env.KURGU_NO_SANDBOX) app.commandLine.appendSwitch('no-sandbox');
 // smoother video on weak GPUs; Chromium picks hardware decode where it can
@@ -21,7 +21,7 @@ protocol.registerSchemesAsPrivileged([
 let win: BrowserWindow | null = null;
 const userDir = () => app.getPath('userData');
 const cacheDir = () => join(userDir(), 'cache');
-const recoveryFile = () => join(userDir(), 'recovery.kurgu');
+const recoveryFile = () => join(userDir(), 'recovery.basecut');
 const autosaveDir = () => join(userDir(), 'autosave');
 
 // ------------------------------------------------------------------ media worker (crash isolated)
@@ -33,7 +33,7 @@ let seq = 0;
 function startWorker(): UtilityProcess {
   mkdirSync(cacheDir(), { recursive: true });
   const w = utilityProcess.fork(join(__dirname, 'worker.js'), [], {
-    serviceName: 'Kurgu Media Worker',
+    serviceName: 'BaseCut Media Worker',
     env: { ...process.env, KURGU_CACHE: cacheDir() },
     stdio: 'pipe',
   });
@@ -154,8 +154,8 @@ function flushJournal() {
     if (Date.now() - lastAutosave > 120_000) {
       lastAutosave = Date.now();
       mkdirSync(autosaveDir(), { recursive: true });
-      writeFileSync(join(autosaveDir(), `autosave-${new Date().toISOString().replace(/[:.]/g, '-')}.kurgu`), data);
-      const files = readdirSync(autosaveDir()).filter((f) => f.endsWith('.kurgu')).sort();
+      writeFileSync(join(autosaveDir(), `autosave-${new Date().toISOString().replace(/[:.]/g, '-')}.basecut`), data);
+      const files = readdirSync(autosaveDir()).filter((f) => f.endsWith('.basecut')).sort();
       for (const f of files.slice(0, Math.max(0, files.length - 20))) unlinkSync(join(autosaveDir(), f));
     }
   } catch { /* disk full etc. — never crash the app over a journal */ }
@@ -225,7 +225,7 @@ function buildMenu() {
       { type: 'separator' }, { role: 'togglefullscreen', label: 'Tam Ekran' },
       { role: 'zoomIn', label: 'Arayüzü Büyüt' }, { role: 'zoomOut', label: 'Arayüzü Küçült' }, { role: 'resetZoom', label: 'Arayüz Boyutunu Sıfırla' },
     ] },
-    { label: 'Yardım', submenu: [{ label: 'Kurgu hakkında', click: cmd('about') }] },
+    { label: 'Yardım', submenu: [{ label: 'BaseCut Pro hakkında', click: cmd('about') }] },
   ];
   // shortcuts are handled by the editor itself (so they respect panel focus and
   // text fields); the menu only shows them. Clipboard roles stay native.
@@ -268,7 +268,7 @@ function registerIpc() {
   ipcMain.handle('saveProject', async (_e, project: Project, path: string | null) => {
     let target = path;
     if (!target) {
-      const r = await dialog.showSaveDialog(win!, { title: 'Projeyi kaydet', defaultPath: join(app.getPath('documents'), `${project.name}.kurgu`), filters: [{ name: 'Kurgu Projesi', extensions: ['kurgu'] }] });
+      const r = await dialog.showSaveDialog(win!, { title: 'Projeyi kaydet', defaultPath: join(app.getPath('documents'), `${project.name}.basecut`), filters: [{ name: 'BaseCut Projesi', extensions: ['basecut', 'kurgu'] }] });
       if (r.canceled || !r.filePath) return null;
       target = r.filePath;
     }
@@ -277,10 +277,10 @@ function registerIpc() {
     return target;
   });
   ipcMain.handle('openProject', async () => {
-    const r = await dialog.showOpenDialog(win!, { title: 'Proje aç', properties: ['openFile'], filters: [{ name: 'Kurgu Projesi', extensions: ['kurgu'] }] });
+    const r = await dialog.showOpenDialog(win!, { title: 'Proje aç', properties: ['openFile'], filters: [{ name: 'BaseCut Projesi', extensions: ['basecut', 'kurgu'] }] });
     if (r.canceled || !r.filePaths[0]) return null;
     const project = JSON.parse(readFileSync(r.filePaths[0], 'utf8')) as Project;
-    if (project.format !== 'kurgu-project') throw new Error('Bu bir Kurgu projesi değil');
+    if (project.format !== 'kurgu-project') throw new Error('Bu bir BaseCut projesi değil');
     return { project, path: r.filePaths[0] };
   });
   ipcMain.on('journal', (_e, project: Project) => {

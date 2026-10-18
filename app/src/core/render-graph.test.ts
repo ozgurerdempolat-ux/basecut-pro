@@ -7,8 +7,11 @@ import { MediaItem, makeProject, makeSequence, tracksOfKind } from './model';
 import * as ops from './ops';
 import { buildRenderPlan, defaultExport } from './render-graph';
 
-const FFMPEG = process.env.FFMPEG ?? 'ffmpeg';
-const FFPROBE = process.env.FFPROBE ?? 'ffprobe';
+import { createRequire } from 'node:module';
+const req = createRequire(import.meta.url);
+// prefer the binaries we ship, so CI on every OS tests the real thing
+const FFMPEG = process.env.FFMPEG ?? (req('ffmpeg-static') as string) ?? 'ffmpeg';
+const FFPROBE = process.env.FFPROBE ?? (req('ffprobe-static') as { path: string }).path ?? 'ffprobe';
 const dir = mkdtempSync(join(tmpdir(), 'kurgu-render-'));
 
 function probe(file: string) {

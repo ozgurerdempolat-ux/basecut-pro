@@ -51,7 +51,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    window.kurgu.setTitle(`${dirty ? '● ' : ''}${project.name} — Kurgu`);
+    window.kurgu.setTitle(`${dirty ? '● ' : ''}${project.name} — BaseCut Pro`);
   }, [dirty, project.name]);
 
   // keyboard
@@ -72,7 +72,7 @@ export function App() {
   return (
     <div className="app">
       <div className="header">
-        <div className="brand"><div className="brand-mark" />Kurgu</div>
+        <div className="brand"><div className="brand-mark" />BaseCut<span className="brand-pro">PRO</span></div>
         <div className="modes">
           <button className={mode === 'edit' ? 'on' : ''} onClick={() => useStore.setState({ mode: 'edit' })}>Kurgu</button>
           <button className={mode === 'export' ? 'on' : ''} onClick={() => useStore.setState({ mode: 'export' })}>Dışa Aktar</button>

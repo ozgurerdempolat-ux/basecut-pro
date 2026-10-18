@@ -14,10 +14,13 @@ const log = (...a) => console.log('[e2e]', ...a);
 const results = [];
 const check = (name, ok, detail = '') => { results.push({ name, ok, detail }); log(ok ? 'PASS' : 'FAIL', name, detail); };
 
-const app = await electron.launch({
-  args: ['--no-sandbox', '--disable-gpu-sandbox', 'out/main/index.js'],
-  env: { ...process.env, KURGU_FFMPEG: 'ffmpeg', KURGU_FFPROBE: 'ffprobe', ELECTRON_ENABLE_LOGGING: '1' },
-});
+// KURGU_EXE=path/to/packaged/app tests the installed build with its bundled ffmpeg
+const app = process.env.KURGU_EXE
+  ? await electron.launch({ executablePath: process.env.KURGU_EXE, args: ['--no-sandbox', '--disable-gpu-sandbox'] })
+  : await electron.launch({
+    args: ['--no-sandbox', '--disable-gpu-sandbox', 'out/main/index.js'],
+    env: { ...process.env, KURGU_FFMPEG: 'ffmpeg', KURGU_FFPROBE: 'ffprobe', ELECTRON_ENABLE_LOGGING: '1' },
+  });
 const page = await app.firstWindow();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));

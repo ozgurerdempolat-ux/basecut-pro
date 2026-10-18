@@ -319,7 +319,7 @@ export async function saveProject(as = false) {
   const st = S();
   const path = await window.kurgu.saveProject(st.project, as ? null : st.projectPath);
   if (path) {
-    const name = path.split(/[\\/]/).pop()!.replace(/\.kurgu$/, '');
+    const name = path.split(/[\\/]/).pop()!.replace(/\.(basecut|kurgu)$/, '');
     set((s) => ({ projectPath: path, dirty: false, project: produce(s.project, (d) => { d.name = name; }) }));
     toast('Proje kaydedildi', 'success');
   }
