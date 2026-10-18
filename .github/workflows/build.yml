@@ -52,17 +52,25 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    # every push to main publishes a downloadable build (the release tag is created here, by GitHub)
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: build
     runs-on: ubuntu-latest
     permissions: { contents: write }
     steps:
       - uses: actions/download-artifact@v4
         with: { path: dist, merge-multiple: true }
+      - uses: actions/checkout@v4
+        with: { sparse-checkout: app/package.json }
+      - id: ver
+        run: echo "v=$(node -p "require('./app/package.json').version")" >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          name: BaseCut Pro ${{ github.ref_name }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}-b{1}', steps.ver.outputs.v, github.run_number) }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          name: BaseCut Pro ${{ steps.ver.outputs.v }} (derleme ${{ github.run_number }})
           body: |
             **Windows:** `...Windows-Kurulum.exe` (kurulum) veya `...Tasinabilir.exe` (kurulumsuz, USB'den çalışır)
             **Mac (M1/M2/M3/M4):** `...Mac-arm64.dmg`  ·  **Mac (Intel):** `...Mac-x64.dmg`
