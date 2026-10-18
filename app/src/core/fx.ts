@@ -1,3 +1,4 @@
+import { IMPACTS } from './impact';
 // Effects and transitions: the shared definitions. Each effect has parameters
 // and an ffmpeg filter builder (export); the renderer has a matching preview
 // implementation keyed by the same id. Pixel sizes are given as % of the frame
@@ -259,7 +260,7 @@ export function defaultParams(id: string): Record<string, number> {
 
 // ------------------------------------------------------------------ transitions
 
-export interface TransitionDef { id: string; name: string; xfade: string; group: 'Çözülme' | 'Silme' | 'Kaydırma' | 'Şekil' | 'Özel' }
+export interface TransitionDef { id: string; name: string; xfade: string; group: 'Impact (sinematik)' | 'Çözülme' | 'Silme' | 'Kaydırma' | 'Şekil' | 'Özel'; desc?: string }
 
 export const TRANSITIONS: TransitionDef[] = [
   { id: 'cross', name: 'Çapraz geçiş', xfade: 'fade', group: 'Çözülme' },
@@ -294,6 +295,8 @@ export const TRANSITIONS: TransitionDef[] = [
   { id: 'hlslice', name: 'Dilimler', xfade: 'hlslice', group: 'Şekil' },
   { id: 'zoomin', name: 'Yakınlaşarak geçiş', xfade: 'zoomin', group: 'Özel' },
   { id: 'hlwind', name: 'Rüzgâr', xfade: 'hlwind', group: 'Özel' },
+  // cinematic motion transitions (core/impact.ts); listed first in the library
+  ...IMPACTS.map((d): TransitionDef => ({ id: d.id, name: d.name, xfade: 'impact', group: 'Impact (sinematik)', desc: d.desc })),
 ];
 
 export const TRANSITION_BY_ID: Record<string, TransitionDef> = Object.fromEntries(TRANSITIONS.map((t) => [t.id, t]));

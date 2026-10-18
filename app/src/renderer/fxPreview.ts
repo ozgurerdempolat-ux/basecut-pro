@@ -2,6 +2,7 @@
 // filters in core/fx.ts closely enough to judge the look while editing; the
 // export uses the real ffmpeg filters.
 import { ClipEffect, EFFECT_BY_ID, TRANSITION_BY_ID } from '../core/fx';
+import { IMPACT_BY_ID, ImpactDef, SideXf, flashAt, projectPoint, sideAlpha, sideAt } from '../core/impact';
 
 const pool: HTMLCanvasElement[] = [];
 export function tmpCanvas(w: number, h: number): HTMLCanvasElement {
@@ -222,7 +223,9 @@ const ease = (x: number) => x;
 // Both sides may be transparent (a transition from/to nothing at a clip's head or
 // tail), so everything is composited on its own canvas with real mixing — never
 // "B on top of A" — and only the result is drawn over the lower tracks.
-export function drawTransition(out: CanvasRenderingContext2D, A: HTMLCanvasElement, B: HTMLCanvasElement, type: string, pIn: number) {
+export function drawTransition(out: CanvasRenderingContext2D, A: HTMLCanvasElement, B: HTMLCanvasElement, type: string, pIn: number, frames = 30) {
+  const imp = IMPACT_BY_ID[type];
+  if (imp) { drawImpact(out, A, B, imp, pIn, frames); return; }
   const W = A.width, H = A.height;
   const p = Math.max(0, Math.min(1, ease(pIn)));
   const x = TRANSITION_BY_ID[type]?.xfade ?? 'fade';
@@ -360,4 +363,108 @@ export function drawTransition(out: CanvasRenderingContext2D, A: HTMLCanvasEleme
   ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.filter = 'none';
   out.drawImage(T, 0, 0);
   release(T);
+}
+
+// ------------------------------------------------------------------ impact transitions (core/impact.ts)
+
+/** draw `src` with the side transform at p — affine when flat, a fine mesh when rotated in 3D */
+function drawSide(ctx: CanvasRenderingContext2D, src: HTMLCanvasElement, x: SideXf, p: number, alpha: number, clamp: boolean) {
+  if (alpha <= 0.001) return;
+  const W = src.width, H = src.height;
+  const t = sideAt(x, p);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  if (Math.abs(t.ry) < 0.01 && Math.abs(t.rx) < 0.01) {
+    const [x0, y0] = projectPoint(-0.5, -0.5, t, W, H);
+    const [x1, y1] = projectPoint(0.5, -0.5, t, W, H);
+    const [x2, y2] = projectPoint(-0.5, 0.5, t, W, H);
+    ctx.setTransform((x1 - x0) / W, (y1 - y0) / W, (x2 - x0) / H, (y2 - y0) / H, x0, y0);
+    if (clamp) {
+      // like ffmpeg's perspective without padding: edge pixels repeat outwards
+      const E = 6;
+      ctx.drawImage(src, 0, 0, 1, H, -E * W, 0, E * W, H);
+      ctx.drawImage(src, W - 1, 0, 1, H, W, 0, E * W, H);
+      ctx.drawImage(src, 0, 0, W, 1, 0, -E * H, W, E * H);
+      ctx.drawImage(src, 0, H - 1, W, 1, 0, H, W, E * H);
+      ctx.drawImage(src, 0, 0, 1, 1, -E * W, -E * H, E * W, E * H);
+      ctx.drawImage(src, W - 1, 0, 1, 1, W, -E * H, E * W, E * H);
+      ctx.drawImage(src, 0, H - 1, 1, 1, -E * W, H, E * W, E * H);
+      ctx.drawImage(src, W - 1, H - 1, 1, 1, W, H, E * W, E * H);
+    }
+    ctx.drawImage(src, 0, 0);
+  } else {
+    const N = 12;
+    const pt = (i: number, j: number) => projectPoint(i / N - 0.5, j / N - 0.5, t, W, H);
+    const tri = (s0: [number, number], s1: [number, number], s2: [number, number], d0: [number, number], d1: [number, number], d2: [number, number]) => {
+      // inflate a little against hairline seams between triangles
+      const cx = (d0[0] + d1[0] + d2[0]) / 3, cy = (d0[1] + d1[1] + d2[1]) / 3;
+      const grow = (d: [number, number]): [number, number] => { const dx = d[0] - cx, dy = d[1] - cy, l = Math.hypot(dx, dy) || 1; return [d[0] + (dx / l) * 0.6, d[1] + (dy / l) * 0.6]; };
+      const [a, b, c] = [grow(d0), grow(d1), grow(d2)];
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.closePath(); ctx.clip();
+      const den = (s1[0] - s0[0]) * (s2[1] - s0[1]) - (s2[0] - s0[0]) * (s1[1] - s0[1]);
+      if (Math.abs(den) > 1e-9) {
+        const m11 = ((d1[0] - d0[0]) * (s2[1] - s0[1]) - (d2[0] - d0[0]) * (s1[1] - s0[1])) / den;
+        const m12 = ((d1[1] - d0[1]) * (s2[1] - s0[1]) - (d2[1] - d0[1]) * (s1[1] - s0[1])) / den;
+        const m21 = ((d2[0] - d0[0]) * (s1[0] - s0[0]) - (d1[0] - d0[0]) * (s2[0] - s0[0])) / den;
+        const m22 = ((d2[1] - d0[1]) * (s1[0] - s0[0]) - (d1[1] - d0[1]) * (s2[0] - s0[0])) / den;
+        ctx.setTransform(m11, m12, m21, m22, d0[0] - m11 * s0[0] - m21 * s0[1], d0[1] - m12 * s0[0] - m22 * s0[1]);
+        ctx.drawImage(src, 0, 0);
+      }
+      ctx.restore();
+    };
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const s00: [number, number] = [(i / N) * W, (j / N) * H], s10: [number, number] = [((i + 1) / N) * W, (j / N) * H];
+      const s01: [number, number] = [(i / N) * W, ((j + 1) / N) * H], s11: [number, number] = [((i + 1) / N) * W, ((j + 1) / N) * H];
+      const d00 = pt(i, j), d10 = pt(i + 1, j), d01 = pt(i, j + 1), d11 = pt(i + 1, j + 1);
+      tri(s00, s10, s01, d00, d10, d01);
+      tri(s10, s11, s01, d10, d11, d01);
+    }
+  }
+  ctx.restore();
+}
+
+function drawImpact(out: CanvasRenderingContext2D, A0: HTMLCanvasElement, B0: HTMLCanvasElement, d: ImpactDef, pIn: number, frames: number) {
+  const W = A0.width, H = A0.height;
+  const p = Math.max(0, Math.min(1, pIn));
+  let A = A0, B = B0;
+  const extra: HTMLCanvasElement[] = [];
+  if (d.rgb) {
+    const shift = (c: HTMLCanvasElement) => { const t = tmpCanvas(W, H); const tc = ctx2(t); tc.clearRect(0, 0, W, H); tc.drawImage(c, 0, 0); applyEffects(t, [{ id: 'x', type: 'rgbsplit', enabled: true, params: { amount: d.rgb! } }], 0, H); extra.push(t); return t; };
+    A = shift(A0); B = shift(B0);
+  }
+  const clamp = d.edge === 'clamp';
+  const taps = d.blur && d.blur > 1 ? Math.round(d.blur) : 1;
+  const dp = 1 / Math.max(1, frames - 1);
+  const T = tmpCanvas(W, H);
+  const tc = ctx2(T);
+  tc.setTransform(1, 0, 0, 1, 0, 0);
+  tc.globalCompositeOperation = 'source-over'; tc.globalAlpha = 1;
+  tc.clearRect(0, 0, W, H);
+  const C = taps > 1 ? tmpCanvas(W, H) : T;
+  const cc = ctx2(C);
+  for (let j = 0; j < taps; j++) {
+    const pj = Math.max(0, p - j * dp);
+    if (taps > 1) { cc.setTransform(1, 0, 0, 1, 0, 0); cc.globalCompositeOperation = 'source-over'; cc.globalAlpha = 1; cc.clearRect(0, 0, W, H); }
+    const order: ['A' | 'B', HTMLCanvasElement, SideXf][] = d.top === 'A' ? [['B', B, d.B], ['A', A, d.A]] : [['A', A, d.A], ['B', B, d.B]];
+    for (const [which, src, xf] of order) drawSide(cc, src, xf, pj, sideAlpha(xf, which, pj), clamp);
+    if (taps > 1) {
+      // tmix: average of the last `taps` frames
+      tc.globalCompositeOperation = 'lighter'; tc.globalAlpha = 1 / taps;
+      tc.drawImage(C, 0, 0);
+      tc.globalCompositeOperation = 'source-over'; tc.globalAlpha = 1;
+    }
+  }
+  if (taps > 1) release(C);
+  const fl = flashAt(d, p);
+  if (fl > 0 && d.flash) {
+    tc.globalAlpha = fl;
+    tc.fillStyle = `#${d.flash.color.toString(16).padStart(6, '0')}`;
+    tc.fillRect(0, 0, W, H);
+    tc.globalAlpha = 1;
+  }
+  out.drawImage(T, 0, 0);
+  release(T);
+  for (const c of extra) release(c);
 }

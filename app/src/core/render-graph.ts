@@ -4,6 +4,7 @@
 
 import { AnimatableParam, Clip, MediaItem, Project, Sequence, clipEnd, clipSrcSpan, sequenceDuration } from './model';
 import { EFFECT_BY_ID, TRANSITION_BY_ID, motionOf, transitionWindows } from './fx';
+import { IMPACT_BY_ID, impactFilters } from './impact';
 import { AUDIO_TRANSITIONS, audioFxChain } from './audiofx';
 
 export type VideoCodec = 'h264' | 'hevc' | 'prores' | 'vp9' | 'gif' | 'none';
@@ -241,7 +242,7 @@ export function buildRenderPlan(
         .filter((c) => c.trackId === trackId && c.stream === 'video' && c.enabled)
         .sort((x, y) => x.start - y.start);
       const { windows: wins, cutStart, cutEnd } = transitionWindows(clips);
-      const windows = wins.map((w) => ({ ...w, type: TRANSITION_BY_ID[w.type]?.xfade ?? 'fade' }));
+      const windows = wins.map((w) => ({ ...w, impact: IMPACT_BY_ID[w.type], type: TRANSITION_BY_ID[w.type]?.xfade ?? 'fade' }));
       for (const c of clips) {
         const a = Math.max(c.start, from, cutStart.get(c.id) ?? -Infinity);
         const b = Math.min(clipEnd(c), to, cutEnd.get(c.id) ?? Infinity);
@@ -263,10 +264,16 @@ export function buildRenderPlan(
         };
         const sa = seg(w.A), sb = seg(w.B);
         const x = lbl('x');
-        let post = `xfade=transition=${w.type}:duration=${r6(len)}:offset=0`;
-        if (a > w.a) post += `,trim=start=${r6((a - w.a) / F)}`;
-        post += `,setpts=PTS-STARTPTS+${r6((a - from) / F)}/TB`;
-        filters.push(`[${sa}][${sb}]${post}[${x}]`);
+        let tail = '';
+        if (a > w.a) tail += `,trim=start=${r6((a - w.a) / F)}`;
+        tail += `,setpts=PTS-STARTPTS+${r6((a - from) / F)}/TB`;
+        if (w.impact) {
+          const im = impactFilters(w.impact, sa, sb, W, H, fps, Math.max(2, Math.round(len * fps)), lbl);
+          filters.push(...im.filters);
+          filters.push(`[${im.out}]null${tail}[${x}]`);
+        } else {
+          filters.push(`[${sa}][${sb}]xfade=transition=${w.type}:duration=${r6(len)}:offset=0${tail}[${x}]`);
+        }
         last = overlayAll(last, [{ label: x, x: '0', y: '0', anim: false }], `between(t,${r6((a - from) / F)},${r6((b - from) / F - 0.5 / fps)})`);
       }
     }

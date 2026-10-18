@@ -481,6 +481,25 @@ await page.click('.modes button:has-text("Kurgu")').catch(() => {});
   await page.keyboard.press('Control+Shift+d');
   const aAfter = await page.evaluate(() => Object.values(window.__kurgu.store.committedSeq().clips).filter((c) => c.stream === 'audio' && (c.transIn || c.transOut)).length);
   check('Ctrl+Shift+D ses geçişi ekledi', aAfter === aBefore + 1, `${aBefore} → ${aAfter}`);
+  // impact transition: turn the Ctrl+D cut into a spin and remember what the preview shows mid-way
+  globalThis.__impact = await page.evaluate(async () => {
+    const k = window.__kurgu.store;
+    const s = k.committedSeq();
+    const v1 = s.tracks.find((t) => t.name === 'V1').id;
+    const cs = Object.values(s.clips).filter((c) => c.trackId === v1).sort((a, b) => a.start - b.start);
+    const B = cs[2];
+    k.edit('impact', (q) => { q.clips[B.id].transIn = { type: 'imp-spin', duration: 24 }; });
+    const f = B.start - 12 + 9;
+    k.setPlayhead(f);
+    await new Promise((r) => setTimeout(r, 1200));
+    k.setPlayhead(f);
+    await new Promise((r) => setTimeout(r, 600));
+    const c = document.querySelector('.viewer canvas');
+    const t = document.createElement('canvas'); t.width = 16; t.height = 9;
+    t.getContext('2d').drawImage(c, 0, 0, 16, 9);
+    return { frame: f, fps: s.fps, px: Array.from(t.getContext('2d').getImageData(0, 0, 16, 9).data) };
+  });
+  await shot(page, '17c-impact-spin');
   // a few more effects for the export test
   await page.evaluate((id) => {
     const k = window.__kurgu.store;
@@ -512,6 +531,14 @@ if (existsSync(outFile)) {
   check('Export süresi sekansla aynı', Math.abs(Number(info.format.duration) - expected) < 0.15, `${info.format.duration} vs ${expected.toFixed(3)}`);
   check('Export 1920×1080 + ses', info.streams.some((x) => x.codec_type === 'video' && x.width === 1920) && info.streams.some((x) => x.codec_type === 'audio'));
   execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', '2', '-i', outFile, '-frames:v', '1', join(outDir, '10-export-karesi.png')]);
+  const im = globalThis.__impact;
+  if (im) {
+    const raw = execFileSync('ffmpeg', ['-v', 'error', '-ss', String((im.frame + 0.25) / im.fps), '-i', outFile, '-frames:v', '1', '-vf', 'scale=16:9:flags=area', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-']);
+    let diff = 0, n = 0;
+    for (let i = 0, j = 0; i < raw.length; i += 3, j += 4) { for (let c = 0; c < 3; c++) diff += Math.abs(raw[i + c] - im.px[j + c]); n += 3; }
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', String((im.frame + 0.25) / im.fps), '-i', outFile, '-frames:v', '1', '-vf', 'scale=640:-2', join(outDir, '17d-impact-export.png')]);
+    check('Impact geçişi: önizleme = dışa aktarım', diff / n < 35, `ortalama fark ${(diff / n).toFixed(1)}`);
+  }
 }
 
 // ---- crash isolation: kill the worker mid-job and keep editing

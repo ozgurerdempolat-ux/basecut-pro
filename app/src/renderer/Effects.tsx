@@ -152,7 +152,7 @@ export function EffectsLibrary() {
   const tGroups = useMemo(() => {
     const m = new Map<string, typeof trans>();
     for (const t of trans) { if (!m.has(t.group)) m.set(t.group, []); m.get(t.group)!.push(t); }
-    return [...m.entries()];
+    return [...m.entries()].sort((x, y) => (y[0].startsWith('Impact') ? 1 : 0) - (x[0].startsWith('Impact') ? 1 : 0));
   }, [trans]);
 
   const item = (kind: FxDrag['kind'], id: string, name: string, desc?: string) => (
@@ -181,7 +181,7 @@ export function EffectsLibrary() {
       <div className="fx-group">
         <div className="gh" onClick={() => setOpen({ ...open, trans: !open.trans })}><span style={{ color: 'var(--text-3)' }}>{open.trans ? '▾' : '▸'}</span>Video geçişleri <span className="pill">{trans.length}</span></div>
         {open.trans && tGroups.map(([g, list]) => (
-          <div key={g}><div className="fx-cat">{g}</div>{list.map((t) => item('transition', t.id, t.name))}</div>
+          <div key={g}><div className="fx-cat">{g}</div>{list.map((t) => item('transition', t.id, t.name, t.desc))}</div>
         ))}
       </div>
       <div className="fx-group">

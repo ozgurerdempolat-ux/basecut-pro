@@ -9,6 +9,7 @@ import { drawCaptions } from './Captions';
 import { grader } from './grader';
 import { isNeutral } from '../core/color';
 import { EFFECT_BY_ID, motionAt, transitionWindows } from '../core/fx';
+import { IMPACT_BY_ID } from '../core/impact';
 import { applyEffects, drawBlurFill, drawTransition, release, tmpCanvas } from './fxPreview';
 import { AUDIO_FX_BY_ID, AUDIO_TRANSITIONS, PreviewNode, fadeGain } from '../core/audiofx';
 
@@ -209,7 +210,9 @@ class Player {
         ca.clearRect(0, 0, W, H); cb.clearRect(0, 0, W, H);
         if (w.A && media[w.A.mediaId]) this.drawClipAt(ca, w.A, media[w.A.mediaId], frame, W, H, seq, res, playing, rate);
         if (w.B && media[w.B.mediaId]) this.drawClipAt(cb, w.B, media[w.B.mediaId], frame, W, H, seq, res, playing, rate);
-        drawTransition(ctx, tA, tB, w.type, (frame - w.a) / Math.max(1, w.b - w.a));
+        const n = w.b - w.a;
+        // impact transitions are keyed to frames like ffmpeg (p = i/(n-1)); classic ones to the xfade progress
+        drawTransition(ctx, tA, tB, w.type, IMPACT_BY_ID[w.type] ? (frame - w.a) / Math.max(1, n - 1) : (frame - w.a) / Math.max(1, n), n);
         release(tA); release(tB);
       }
     }
