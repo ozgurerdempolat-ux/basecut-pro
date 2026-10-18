@@ -10,7 +10,7 @@ await page.screenshot({ path: join(out, `a0-empty-${w}.png`) });
 await page.evaluate((p) => window.__kurgu.store.importPaths(p, { createSequence: true }), ['kamera-1.mp4', 'logo.png', 'muzik.wav'].map((f) => join(media, f)));
 await page.waitForTimeout(3000);
 await page.evaluate(() => { const k = window.__kurgu.store; const s = k.committedSeq(); const c = Object.values(s.clips).find((x) => x.stream === 'video'); k.selectClips([c.id]); k.setPlayhead(40); k.useStore.setState({ toasts: [] }); });
-for (const tab of ['project', 'fx', 'color', 'captions']) {
+for (const tab of ['project', 'effects', 'fx', 'color', 'captions', 'mixer']) {
   await page.evaluate((t) => window.__kurgu.store.useStore.setState({ leftTab: t }), tab);
   await page.waitForTimeout(400);
   await page.screenshot({ path: join(out, `a1-${tab}-${w}.png`) });

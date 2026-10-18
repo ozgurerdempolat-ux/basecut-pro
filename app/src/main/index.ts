@@ -332,6 +332,24 @@ function registerIpc() {
     return p;
   });
 
+  ipcMain.handle('saveRecording', async (_e, name: string, data: Uint8Array) => {
+    const dir = join(app.getPath('documents'), 'BaseCut Pro', 'Seslendirmeler');
+    mkdirSync(dir, { recursive: true });
+    const base = join(dir, name.replace(/[^\w.-]/g, '_'));
+    const raw = `${base}.webm`, wav = `${base}.wav`;
+    writeFileSync(raw, Buffer.from(data));
+    // MediaRecorder files have no duration header; a plain WAV edits and seeks reliably
+    await new Promise<void>((res, rej) => execFile(FFMPEG, ['-v', 'error', '-y', '-i', raw, '-c:a', 'pcm_s16le', '-ar', '48000', wav], (err) => (err ? rej(err) : res())));
+    try { unlinkSync(raw); } catch { /* keep going */ }
+    return wav;
+  });
+  ipcMain.handle('micAccess', async () => {
+    if (process.platform !== 'darwin') return true;
+    const { systemPreferences } = await import('electron');
+    if (systemPreferences.getMediaAccessStatus('microphone') === 'granted') return true;
+    return systemPreferences.askForMediaAccess('microphone');
+  });
+
   ipcMain.handle('saveText', async (_e, name: string, ext: string, content: string) => {
     const r = await dialog.showSaveDialog(win!, { defaultPath: join(app.getPath('documents'), `${name}.${ext}`), filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
     if (r.canceled || !r.filePath) return null;

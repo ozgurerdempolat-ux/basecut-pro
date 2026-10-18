@@ -38,7 +38,8 @@ export function speechRegions(levels: Float32Array, fps: number, o: DuckOptions)
 
 /** volume keyframes (clip-local frames) that duck a music clip under the regions */
 export function duckKeyframes(c: Clip, regions: [number, number][], fps: number, o: DuckOptions): Keyframe[] {
-  const base = c.volumeDb.keyframes.length ? c.volumeDb.keyframes[0].value : c.volumeDb.value;
+  // the static value is the un-ducked level (re-running never compounds)
+  const base = c.volumeDb.value;
   const low = base + o.amountDb;
   const att = Math.max(1, Math.round(o.attackSec * fps)), rel = Math.max(1, Math.round(o.releaseSec * fps));
   const k: Keyframe[] = [];

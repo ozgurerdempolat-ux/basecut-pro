@@ -436,6 +436,12 @@ class Player {
     return v && v.ready ? v.el : null;
   }
 
+  /** silence the speakers (e.g. while recording a voice-over through an open mic) without stopping playback */
+  setMonitorMuted(muted: boolean) {
+    this.ensureAudio();
+    if (this.master) this.master.gain.value = muted ? 0 : 1;
+  }
+
   /** level meter values, 0..1 per channel-ish */
   levels(): number {
     if (!this.analyser) return 0;

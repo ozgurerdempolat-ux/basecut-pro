@@ -16,9 +16,9 @@ const check = (name, ok, detail = '') => { results.push({ name, ok, detail }); l
 
 // KURGU_EXE=path/to/packaged/app tests the installed build with its bundled ffmpeg
 const app = process.env.KURGU_EXE
-  ? await electron.launch({ executablePath: process.env.KURGU_EXE, args: ['--no-sandbox', '--disable-gpu-sandbox'] })
+  ? await electron.launch({ executablePath: process.env.KURGU_EXE, args: ['--no-sandbox', '--disable-gpu-sandbox', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] })
   : await electron.launch({
-    args: ['--no-sandbox', '--disable-gpu-sandbox', 'out/main/index.js'],
+    args: ['--no-sandbox', '--disable-gpu-sandbox', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', 'out/main/index.js'],
     env: { ...process.env, KURGU_FFMPEG: 'ffmpeg', KURGU_FFPROBE: 'ffprobe', ELECTRON_ENABLE_LOGGING: '1' },
   });
 const page = await app.firstWindow();
@@ -509,6 +509,49 @@ await page.click('.modes button:has-text("Kurgu")').catch(() => {});
       q.clips[v2.id].effects = [{ id: 'g', type: 'glitch', enabled: true, params: { amount: 60 } }, { id: 's', type: 'shake', enabled: true, params: { amount: 1, speed: 1 } }];
     });
   }, cut.id);
+}
+
+// ---- audio mixer, ducking, voice-over
+{
+  await page.click('.panel-tabs .tab:has-text("Mikser")');
+  await page.waitForSelector('.mix-strip');
+  const nStrips = await page.$$eval('.mix-strip:not(.master)', (x) => x.length);
+  const nAud = await page.evaluate(() => window.__kurgu.store.committedSeq().tracks.filter((t) => t.kind === 'audio').length);
+  check('Ses mikseri her ses kanalı için şerit gösteriyor', nStrips === nAud, `${nStrips}/${nAud}`);
+  const db = await page.$('.mix-strip[data-track="A2"] .mix-db');
+  await db.click(); await page.keyboard.press('Control+a'); await page.keyboard.type('-6'); await page.keyboard.press('Enter');
+  const a2 = await page.evaluate(() => window.__kurgu.store.committedSeq().tracks.find((t) => t.name === 'A2').volumeDb);
+  check('Mikser kanal seviyesi değişiyor', a2 === -6, String(a2));
+  // ducking: music (A2) under speech (A1)
+  const duck = await page.evaluate(async () => {
+    const k = window.__kurgu.store;
+    const s = k.committedSeq();
+    const A1 = s.tracks.find((t) => t.name === 'A1').id, A2 = s.tracks.find((t) => t.name === 'A2').id;
+    const st = k.useStore.getState();
+    for (const m of Object.values(st.project.media)) if (!st.assets[m.path]?.peaks) await k.loadAssets(m);
+    return { a2: A2, a1: A1 };
+  });
+  await page.selectOption('.mix-card select', duck.a2);
+  await page.click('.mix-card button:has-text("Uygula")');
+  await page.waitForTimeout(200);
+  const kf = await page.evaluate((a2) => Object.values(window.__kurgu.store.committedSeq().clips).filter((c) => c.trackId === a2).map((c) => c.volumeDb.keyframes.length), duck.a2);
+  check('Otomatik ses kısma müziğe anahtar kare yazdı', kf.some((n) => n >= 3), JSON.stringify(kf));
+  await shot(page, '18-ses-mikseri');
+  // voice-over from the (fake) microphone
+  const before = await page.evaluate(() => Object.keys(window.__kurgu.store.committedSeq().clips).length);
+  await page.evaluate(() => window.__kurgu.store.setPlayhead(30));
+  await page.click('.mix-card button:has-text("Kaydı başlat")');
+  await page.waitForSelector('.mix-card button:has-text("Durdur")', { timeout: 10000 });
+  await page.waitForTimeout(1600);
+  await page.click('.mix-card button:has-text("Durdur")');
+  await page.waitForSelector('.mix-card button:has-text("Kaydı başlat")', { timeout: 20000 });
+  const vo = await page.evaluate(() => {
+    const k = window.__kurgu.store; const st = k.useStore.getState(); const s = k.committedSeq();
+    const c = Object.values(s.clips).find((x) => st.project.media[x.mediaId]?.path.includes('seslendirme'));
+    return c ? { start: c.start, dur: c.duration, path: st.project.media[c.mediaId].path } : null;
+  });
+  const after = await page.evaluate(() => Object.keys(window.__kurgu.store.committedSeq().clips).length);
+  check('Mikrofonla seslendirme kaydı timeline\'a eklendi', !!vo && vo.start === 30 && vo.dur > 20 && after === before + 1, JSON.stringify(vo));
 }
 
 // ---- export through the real worker

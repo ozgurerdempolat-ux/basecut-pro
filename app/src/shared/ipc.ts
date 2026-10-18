@@ -96,6 +96,10 @@ export interface KurguApi {
   fontsDir(): Promise<string>;
   writeBinary(path: string, data: Uint8Array): Promise<string>;
   writeCache(name: string, data: Uint8Array): Promise<string>;
+  /** store a microphone recording (webm/opus from MediaRecorder) as WAV under Documents/BaseCut Pro/Seslendirmeler */
+  saveRecording(name: string, data: Uint8Array): Promise<string>;
+  /** ask the OS for microphone access (macOS); true when allowed */
+  micAccess(): Promise<boolean>;
   saveText(defaultName: string, ext: string, content: string): Promise<string | null>;
   openText(exts: string[]): Promise<{ path: string; content: string } | null>;
 }

@@ -1,9 +1,10 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatableParam, Clip, LabelColor, MediaItem, evalParam, framesToTimecode, makeSequence } from '../core/model';
 import { I } from './icons';
 import { CaptionsPanel } from './Captions';
 import { ColorPanel } from './ColorPanel';
 import { AudioEffectStack, EffectStack, EffectsLibrary, TransitionControls } from './Effects';
+import { MixerPanel } from './Mixer';
 import { createTitle, updateTitle } from './titles';
 import { TITLE_FONTS, TITLE_PRESETS, TitleData } from '../core/title';
 import { Tool, activeSeq, committedSeq, edit, editProject, importPaths, setPlayhead, useStore } from './store';
@@ -29,7 +30,15 @@ export function ProjectPanel() {
   const [thumb, setThumb] = useState(130);
   const [over, setOver] = useState(false);
   const tab = useStore((s) => s.leftTab);
-  const setTab = (t: 'project' | 'fx' | 'captions' | 'color' | 'effects') => useStore.setState({ leftTab: t });
+  const tabsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // keep the active tab in view (scrollIntoView would also scroll the panel vertically)
+    const bar = tabsRef.current, el = bar?.querySelector<HTMLElement>('.tab.on');
+    if (!bar || !el) return;
+    if (el.offsetLeft < bar.scrollLeft) bar.scrollLeft = el.offsetLeft - 6;
+    else if (el.offsetLeft + el.offsetWidth > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = el.offsetLeft + el.offsetWidth - bar.clientWidth + 6;
+  }, [tab]);
+  const setTab = (t: 'project' | 'fx' | 'captions' | 'color' | 'effects' | 'mixer') => useStore.setState({ leftTab: t });
   const items = useMemo(() => Object.values(media).filter((m) => m.name.toLowerCase().includes(q.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name)), [media, q]);
 
   const open = async () => {
@@ -55,15 +64,16 @@ export function ProjectPanel() {
         const paths = [...e.dataTransfer.files].map((f) => (f as File & { path?: string }).path ?? '').filter(Boolean);
         if (paths.length) await importPaths(paths);
       }}>
-      <div className="panel-tabs">
+      <div className="panel-tabs" ref={tabsRef} onWheel={(e) => { if (tabsRef.current && Math.abs(e.deltaY) > Math.abs(e.deltaX)) tabsRef.current.scrollLeft += e.deltaY; }}>
         <div className={`tab ${tab === 'project' ? 'on' : ''}`} onClick={() => setTab('project')}>Proje</div>
         <div className={`tab ${tab === 'effects' ? 'on' : ''}`} onClick={() => setTab('effects')}>Efektler</div>
         <div className={`tab ${tab === 'fx' ? 'on' : ''}`} onClick={() => setTab('fx')}>Efekt Kontrolleri</div>
         <div className={`tab ${tab === 'color' ? 'on' : ''}`} onClick={() => setTab('color')}>Renk</div>
         <div className={`tab ${tab === 'captions' ? 'on' : ''}`} onClick={() => setTab('captions')}>Altyazı</div>
+        <div className={`tab ${tab === 'mixer' ? 'on' : ''}`} onClick={() => setTab('mixer')}>Mikser</div>
         <div className="grow" />
       </div>
-      {tab === 'effects' ? <EffectsLibrary /> : tab === 'color' ? <ColorPanel /> : tab === 'captions' ? <CaptionsPanel /> : tab === 'fx' ? <EffectControls /> : (
+      {tab === 'mixer' ? <MixerPanel /> : tab === 'effects' ? <EffectsLibrary /> : tab === 'color' ? <ColorPanel /> : tab === 'captions' ? <CaptionsPanel /> : tab === 'fx' ? <EffectControls /> : (
         <>
           <div className="proj-toolbar">
             <input className="search" placeholder="Ara…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />

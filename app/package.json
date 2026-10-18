@@ -1,6 +1,6 @@
 {
   "name": "basecut",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "BaseCut Pro \u2014 \u00fccretsiz, hafif, profesyonel video kurgu program\u0131. The Base Social",
   "main": "out/main/index.js",
   "scripts": {
@@ -108,6 +108,9 @@
         }
       ],
       "category": "public.app-category.video",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "BaseCut Pro, seslendirme (dış ses) kaydı için mikrofonunuzu kullanır."
+      },
       "artifactName": "BaseCut-Pro-${version}-Mac-${arch}.${ext}",
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
