@@ -4,6 +4,8 @@ import { EXPORT_PRESETS, ExportSettings, defaultExport } from '../core/render-gr
 import { I } from './icons';
 import { ProgramMonitor } from './Monitors';
 import { committedSeq, toast, useStore } from './store';
+import { prepareBurn } from './Captions';
+import { toSRT, fitted } from '../core/captions';
 
 interface Issue { level: 'ok' | 'warn' | 'err'; text: string; fix?: { label: string; run: () => void } }
 
@@ -48,6 +50,9 @@ export function ExportMode() {
   const [presetId, setPresetId] = useState('match');
   const [name, setName] = useState(seq.name);
   const [settings, setSettings] = useState<ExportSettings>(() => ({ ...defaultExport(''), ...EXPORT_PRESETS[0].apply }));
+  const hasCaptions = !!(seq.captions?.enabled && seq.captions.items.length);
+  const [burn, setBurn] = useState(true);
+  const [sidecar, setSidecar] = useState(false);
   setSettingsGlobal = (p) => setSettings((s) => ({ ...s, ...p }));
 
   useEffect(() => setName(seq.name), [seq.name]);
@@ -87,7 +92,18 @@ export function ExportMode() {
     const out = await window.kurgu.chooseExportPath(name || 'video', ext);
     if (!out) return;
     const st = useStore.getState();
-    await window.kurgu.exportSequence({ project: st.project, sequenceId: seq.id, settings: { ...settings, output: out }, useProxies: false });
+    const s2: ExportSettings = { ...settings, output: out };
+    const rangeStart = settings.range === 'inout' ? seq.inPoint ?? 0 : 0;
+    if (hasCaptions && burn && settings.videoCodec !== 'none') {
+      const b = await prepareBurn(seq, rangeStart);
+      if (b) { s2.burnSubtitles = b.ass; s2.subtitlesFontsDir = b.fonts; }
+    }
+    if (hasCaptions && sidecar) {
+      const shifted = seq.captions!.items.map((c) => ({ ...c, start: c.start - rangeStart, end: c.end - rangeStart })).filter((c) => c.end > 0);
+      const srtPath = out.replace(/\.[^.\\/]+$/, '.srt');
+      await window.kurgu.saveText(srtPath.split(/[\\/]/).pop()!.replace(/\.srt$/, ''), 'srt', toSRT(shifted, seq.fps, fitted(seq.captions!.style, seq.width, seq.height)));
+    }
+    await window.kurgu.exportSequence({ project: st.project, sequenceId: seq.id, settings: s2, useProxies: false });
     toast('Dışa aktarma başladı — düzenlemeye devam edebilirsiniz', 'info');
   };
 
@@ -163,6 +179,13 @@ export function ExportMode() {
               </select></div>
           )}
         </div>
+        {hasCaptions && (
+          <div style={{ display: 'grid', gap: 6 }}>
+            <h3>Altyazı</h3>
+            <label className="check"><input type="checkbox" checked={burn} onChange={(e) => setBurn(e.target.checked)} /> Altyazıyı videoya göm ({seq.captions!.items.length} satır)</label>
+            <label className="check"><input type="checkbox" checked={sidecar} onChange={(e) => setSidecar(e.target.checked)} /> Ayrıca .srt dosyası kaydet</label>
+          </div>
+        )}
         <div>
           <h3>Ön kontrol</h3>
           <div className="preflight">

@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { AnimatableParam, Clip, LabelColor, MediaItem, evalParam, framesToTimecode, makeSequence } from '../core/model';
 import { I } from './icons';
+import { CaptionsPanel } from './Captions';
 import { Tool, activeSeq, committedSeq, edit, editProject, importPaths, setPlayhead, useStore } from './store';
 
 export const LABELS: Record<LabelColor, string> = {
@@ -23,7 +24,8 @@ export function ProjectPanel() {
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [thumb, setThumb] = useState(130);
   const [over, setOver] = useState(false);
-  const [tab, setTab] = useState<'project' | 'fx'>('project');
+  const tab = useStore((s) => s.leftTab);
+  const setTab = (t: 'project' | 'fx' | 'captions') => useStore.setState({ leftTab: t });
   const items = useMemo(() => Object.values(media).filter((m) => m.name.toLowerCase().includes(q.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name)), [media, q]);
 
   const open = async () => {
@@ -52,9 +54,10 @@ export function ProjectPanel() {
       <div className="panel-tabs">
         <div className={`tab ${tab === 'project' ? 'on' : ''}`} onClick={() => setTab('project')}>Proje</div>
         <div className={`tab ${tab === 'fx' ? 'on' : ''}`} onClick={() => setTab('fx')}>Efekt Kontrolleri</div>
+        <div className={`tab ${tab === 'captions' ? 'on' : ''}`} onClick={() => setTab('captions')}>Altyazı</div>
         <div className="grow" />
       </div>
-      {tab === 'fx' ? <EffectControls /> : (
+      {tab === 'captions' ? <CaptionsPanel /> : tab === 'fx' ? <EffectControls /> : (
         <>
           <div className="proj-toolbar">
             <input className="search" placeholder="Ara…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />

@@ -8,4 +8,6 @@ createRoot(document.getElementById('root')!).render(<App />);
 import * as store from './store';
 import { player } from './player';
 import * as ops from '../core/ops';
-(window as unknown as { __kurgu: unknown }).__kurgu = { store, player, ops };
+import * as captions from './Captions';
+import * as capcore from '../core/captions';
+(window as unknown as { __kurgu: unknown }).__kurgu = { store, player, ops, captions, capcore };

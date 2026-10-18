@@ -5,6 +5,7 @@
 
 import { Clip, MediaItem, Sequence, clipEnd, evalParam, sequenceDuration, sourceTimeAt } from '../core/model';
 import { activeSeq, committedSeq, playbackPath, setPlayhead, useStore } from './store';
+import { drawCaptions } from './Captions';
 
 type Visual = { el: HTMLVideoElement | HTMLImageElement; path: string; ready: boolean };
 type Sound = { el: HTMLMediaElement; path: string; gain: GainNode | null; src: MediaElementAudioSourceNode | null };
@@ -128,12 +129,14 @@ class Player {
     if (!v) {
       if (m.kind === 'image') {
         const img = new Image();
+        img.crossOrigin = 'anonymous'; // media comes from kmedia://; keep the canvas exportable (Export Frame)
         img.decoding = 'async';
         img.src = window.kurgu.mediaUrl(path);
         v = { el: img, path, ready: false };
         img.onload = () => { v!.ready = true; this.dirty = true; };
       } else {
         const el = document.createElement('video');
+        el.crossOrigin = 'anonymous';
         el.muted = true;
         el.preload = 'auto';
         el.playsInline = true;
@@ -215,6 +218,7 @@ class Player {
       }
     }
     for (const id of this.visuals.keys()) if (!live.has(id)) this.dispose(id);
+    drawCaptions(ctx, seq, frame, W, H);
   }
 
   private drawOffline(ctx: CanvasRenderingContext2D, W: number, H: number, m: MediaItem) {
@@ -266,6 +270,7 @@ class Player {
           if (s && s.path !== path) { this.dispose(c.id); s = undefined; }
           if (!s) {
             const el = new Audio();
+            el.crossOrigin = 'anonymous'; // required for WebAudio gain/metering across origins
             el.preload = 'auto';
             el.src = window.kurgu.mediaUrl(path);
             s = { el, path, gain: null, src: null };

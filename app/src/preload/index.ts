@@ -29,6 +29,12 @@ const api: KurguApi = {
   revealInFolder: (p) => ipcRenderer.send('reveal', p),
   setTitle: (t) => ipcRenderer.send('title', t),
   pathExists: (paths) => ipcRenderer.invoke('pathExists', paths),
+  speechAudio: (req) => ipcRenderer.invoke('speechAudio', req),
+  writeTemp: (name, content) => ipcRenderer.invoke('writeTemp', name, content),
+  fontsDir: () => ipcRenderer.invoke('fontsDir'),
+  writeBinary: (path, data) => ipcRenderer.invoke('writeBinary', path, data),
+  saveText: (name, ext, content) => ipcRenderer.invoke('saveText', name, ext, content),
+  openText: (exts) => ipcRenderer.invoke('openText', exts),
 };
 
 contextBridge.exposeInMainWorld('kurgu', api);

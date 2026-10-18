@@ -178,6 +178,27 @@ async function frame(payload: { path: string; time: number; out: string }): Prom
   return payload.out;
 }
 
+// ------------------------------------------------------------------ speech audio (for automatic captions)
+
+async function speechAudio(req: { project: import('../core/model').Project; sequenceId: string; trackIds: string[] }, jobId: string): Promise<string> {
+  const seq = req.project.sequences[req.sequenceId];
+  if (!seq) throw new Error('Sekans bulunamadı');
+  const out = join(CACHE, `speech-${createHash('sha1').update(jobId + Date.now()).digest('hex').slice(0, 10)}.wav`);
+  const plan = buildRenderPlan(req.project, seq, {
+    output: out, container: 'wav', videoCodec: 'none', audioCodec: 'pcm', rateControl: 'quality', quality: 20,
+    videoBitrateKbps: 0, audioBitrateKbps: 0, range: 'all', hardware: 'none', preset: 'veryfast',
+    audioSampleRate: 16000, audioChannels: 1, onlyAudioTracks: req.trackIds,
+  });
+  await run(FFMPEG, plan.args, {
+    jobId,
+    onStdout: (s) => {
+      const m = /out_time_us=(\d+)/.exec(s);
+      if (m) send({ id: jobId, progress: Math.min(0.999, Number(m[1]) / 1e6 / plan.durationSec) });
+    },
+  });
+  return out;
+}
+
 // ------------------------------------------------------------------ dispatch
 
 port.on('message', async ({ data }) => {
@@ -190,6 +211,7 @@ port.on('message', async ({ data }) => {
       case 'proxy': result = await proxy(payload as string, id); break;
       case 'export': result = await exportSeq(payload as ExportRequest, id); break;
       case 'frame': result = await frame(payload as { path: string; time: number; out: string }); break;
+      case 'speechAudio': result = await speechAudio(payload as { project: import('../core/model').Project; sequenceId: string; trackIds: string[] }, id); break;
       case 'cancel': {
         const p = running.get(payload as string);
         if (p) p.kill('SIGKILL');

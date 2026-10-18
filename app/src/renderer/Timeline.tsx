@@ -54,6 +54,9 @@ export function Timeline() {
   const [scroll, setScroll] = useState({ x: 0, y: 0 });
 
   const { lanes, height, sepY } = useMemo(() => layoutLanes(seq), [seq]);
+  const capH = seq.captions?.items.length ? 28 : 0;
+  const capRef = useRef(capH);
+  capRef.current = capH;
   const total = sequenceDuration(seq);
   const contentW = Math.max(viewW, (total + seq.fps * 30) * zoom);
 
@@ -95,7 +98,7 @@ export function Timeline() {
   const laneAtClientY = useCallback((clientY: number) => {
     const el = scrollRef.current!;
     const r = el.getBoundingClientRect();
-    const y = clientY - r.top + el.scrollTop - 26;
+    const y = clientY - r.top + el.scrollTop - 26 - capRef.current;
     return lanes.findIndex((l) => y >= l.y && y < l.y + l.h);
   }, [lanes]);
 
@@ -145,7 +148,7 @@ export function Timeline() {
         const el = scrollRef.current!;
         const r = el.getBoundingClientRect();
         d.x1 = e.clientX - r.left + el.scrollLeft;
-        d.y1 = e.clientY - r.top + el.scrollTop - 26;
+        d.y1 = e.clientY - r.top + el.scrollTop - 26 - capRef.current;
         setMarquee({ x: Math.min(d.x0, d.x1), y: Math.min(d.y0, d.y1), w: Math.abs(d.x1 - d.x0), h: Math.abs(d.y1 - d.y0) });
         break;
       }
@@ -336,7 +339,7 @@ export function Timeline() {
     const el = scrollRef.current!;
     const r = el.getBoundingClientRect();
     const x = e.clientX - r.left + el.scrollLeft;
-    const y = e.clientY - r.top + el.scrollTop - 26;
+    const y = e.clientY - r.top + el.scrollTop - 26 - capRef.current;
     beginDrag({ kind: 'marquee', x0: x, y0: y, x1: x, y1: y, additive: e.shiftKey });
   };
 
@@ -441,6 +444,14 @@ export function Timeline() {
               <button className={`icon-btn ${linkedSel ? 'on' : ''}`} title="Bağlı seçim" onClick={() => useStore.setState((s) => ({ linkedSelection: !s.linkedSelection }))}>{I.link}</button>
               <button className="icon-btn" title="Marker ekle (M)" onClick={() => edit('Marker ekle', (s) => { ops.addMarker(s, s.playhead); })}>{I.marker}</button>
             </div>
+            {capH > 0 && (
+              <div className="track-header" style={{ height: capH, background: '#1d1a14' }}>
+                <div className="tname" style={{ width: 'auto', padding: '2px 6px', background: seq.captions?.enabled ? 'var(--sel)' : 'var(--bg-3)', color: '#1a1406' }}
+                  title="Altyazıyı göster/gizle" onClick={() => edit('Altyazıyı göster', (s) => { if (s.captions) s.captions.enabled = !s.captions.enabled; })}>Altyazı</div>
+                <div style={{ flex: 1 }} />
+                <button className="btn small ghost" onClick={() => useStore.setState({ leftTab: 'captions' })}>Düzenle</button>
+              </div>
+            )}
             <div style={{ position: 'relative', height: height + 200 }}>
               {lanes.map((l) => <TrackHeader key={l.track.id} track={l.track} y={l.y} />)}
               <div className="track-sep" style={{ position: 'absolute', top: sepY, left: 0, right: 0 }} />
@@ -454,6 +465,7 @@ export function Timeline() {
                 setPlayhead(f);
                 beginDrag({ kind: 'scrub' });
               }} />
+              {capH > 0 && <CaptionLane seq={seq} zoom={zoom} height={capH} from={visFrom} to={visTo} />}
               <div className="lanes" style={{ height: height + 200 }} onMouseDown={onLanesMouseDown} onDoubleClick={onLaneDoubleClick} data-tool={tool}>
                 {lanes.map((l, i) => (
                   <div key={l.track.id} className={`lane kind-${l.track.kind} ${l.track.locked ? 'locked' : ''} ${dropLane === i ? 'drop' : ''}`} style={{ position: 'absolute', top: l.y, height: l.h, left: 0, right: 0 }}>
@@ -465,13 +477,28 @@ export function Timeline() {
                 <div className="track-sep" style={{ position: 'absolute', top: sepY, left: 0, right: 0 }} />
                 {marquee && <div className="marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h }} />}
               </div>
-              <div className="playhead" style={{ left: committed.playhead * zoom, height: height + 226 }} />
-              {snapAt !== null && <div className="snapline" style={{ left: snapAt * zoom, height: height + 226 }} />}
+              <div className="playhead" style={{ left: committed.playhead * zoom, height: height + 226 + capH }} />
+              {snapAt !== null && <div className="snapline" style={{ left: snapAt * zoom, height: height + 226 + capH }} />}
             </div>
           </div>
         </div>
       </div>
       {tip && <div className="drag-tip" style={{ left: tip.x, top: tip.y }}>{tip.text}</div>}
+    </div>
+  );
+}
+
+function CaptionLane({ seq, zoom, height, from, to }: { seq: Sequence; zoom: number; height: number; from: number; to: number }) {
+  const items = seq.captions?.items ?? [];
+  const on = seq.captions?.enabled;
+  return (
+    <div style={{ position: 'relative', height, background: '#15130f', borderBottom: '1px solid var(--line)', opacity: on ? 1 : 0.45 }}>
+      {items.filter((c) => c.end >= from && c.start <= to).map((c) => (
+        <div key={c.id} title={c.text} onMouseDown={(e) => { e.stopPropagation(); setPlayhead(c.start); useStore.setState({ leftTab: 'captions' }); }}
+          style={{ position: 'absolute', left: c.start * zoom, width: Math.max(2, (c.end - c.start) * zoom - 1), top: 3, bottom: 3, background: '#c9a227', color: '#1a1406', borderRadius: 3, fontSize: 10, fontWeight: 700, padding: '2px 4px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', cursor: 'pointer' }}>
+          {c.text}
+        </div>
+      ))}
     </div>
   );
 }

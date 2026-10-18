@@ -12,10 +12,12 @@ const APP_NAME = 'BaseCut Pro';
 app.setName(APP_NAME);
 if (process.env.KURGU_NO_SANDBOX) app.commandLine.appendSwitch('no-sandbox');
 // smoother video on weak GPUs; Chromium picks hardware decode where it can
-app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoderSupport');
+app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoderSupport,SharedArrayBuffer');
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'kmedia', privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, bypassCSP: true, corsEnabled: true } },
+  // the UI itself: a real origin (not file://) so workers, wasm and fetch behave like on the web
+  { scheme: 'basecut', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, codeCache: true } },
 ]);
 
 let win: BrowserWindow | null = null;
@@ -86,6 +88,7 @@ function mimeFor(path: string): string {
   const map: Record<string, string> = {
     mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/mp4', webm: 'video/webm', mkv: 'video/webm',
     mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', wav: 'audio/wav', ogg: 'audio/ogg', opus: 'audio/ogg', flac: 'audio/flac',
+    wasm: 'application/wasm', mjs: 'text/javascript', js: 'text/javascript', json: 'application/json', ass: 'text/plain',
     png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', bmp: 'image/bmp', avif: 'image/avif',
   };
   return map[e] ?? 'application/octet-stream';
@@ -97,7 +100,7 @@ function serveMedia(request: Request): Response {
   if (!existsSync(path)) return new Response('not found', { status: 404 });
   const size = statSync(path).size;
   const range = request.headers.get('range');
-  const headers: Record<string, string> = { 'Content-Type': mimeFor(path), 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' };
+  const headers: Record<string, string> = { 'Content-Type': mimeFor(path), 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache', 'Access-Control-Allow-Origin': '*', 'Cross-Origin-Resource-Policy': 'cross-origin' };
   if (range) {
     const m = /bytes=(\d*)-(\d*)/.exec(range);
     let start = m && m[1] ? parseInt(m[1], 10) : 0;
@@ -110,6 +113,11 @@ function serveMedia(request: Request): Response {
   }
   const stream = Readable.toWeb(createReadStream(path)) as unknown as ReadableStream;
   return new Response(stream, { status: 200, headers: { ...headers, 'Content-Length': `${size}` } });
+}
+
+function uiMime(path: string): string {
+  const e = path.toLowerCase().split('.').pop() ?? '';
+  return ({ html: 'text/html; charset=utf-8', css: 'text/css', svg: 'image/svg+xml', ttf: 'font/ttf', woff2: 'font/woff2', ico: 'image/x-icon' } as Record<string, string>)[e] ?? 'application/octet-stream';
 }
 
 // ------------------------------------------------------------------ system
@@ -161,6 +169,13 @@ function flushJournal() {
   } catch { /* disk full etc. — never crash the app over a journal */ }
 }
 
+/** bundled caption fonts: resources/fonts in a packaged app, app/resources/fonts in dev */
+function fontsDir(): string {
+  const packaged = join(process.resourcesPath, 'fonts');
+  if (app.isPackaged && existsSync(packaged)) return packaged;
+  return join(app.getAppPath(), 'resources', 'fonts');
+}
+
 // ------------------------------------------------------------------ window & menu
 
 function createWindow() {
@@ -171,7 +186,7 @@ function createWindow() {
   win.once('ready-to-show', () => win?.show());
   win.on('close', () => flushJournal());
   if (process.env.ELECTRON_RENDERER_URL) win.loadURL(process.env.ELECTRON_RENDERER_URL);
-  else win.loadFile(join(__dirname, '../renderer/index.html'));
+  else win.loadURL('basecut://ui/index.html');
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
 }
 
@@ -297,6 +312,28 @@ function registerIpc() {
   ipcMain.on('reveal', (_e, p: string) => shell.showItemInFolder(p));
   ipcMain.on('title', (_e, t: string) => win?.setTitle(t));
   ipcMain.handle('pathExists', (_e, paths: string[]) => paths.map((p) => existsSync(p)));
+  ipcMain.handle('speechAudio', (_e, req: { project: Project; sequenceId: string; trackIds: string[] }) =>
+    ask<string>('speechAudio', req, { kind: 'transcribe', label: 'Ses hazırlanıyor (altyazı)' }).promise);
+  ipcMain.handle('writeTemp', (_e, name: string, content: string) => {
+    mkdirSync(cacheDir(), { recursive: true });
+    const p = join(cacheDir(), name.replace(/[^\w.-]/g, '_'));
+    writeFileSync(p, content, 'utf8');
+    return p;
+  });
+  ipcMain.handle('fontsDir', () => fontsDir());
+  ipcMain.handle('writeBinary', (_e, path: string, data: Uint8Array) => { writeFileSync(path, Buffer.from(data)); return path; });
+
+  ipcMain.handle('saveText', async (_e, name: string, ext: string, content: string) => {
+    const r = await dialog.showSaveDialog(win!, { defaultPath: join(app.getPath('documents'), `${name}.${ext}`), filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
+    if (r.canceled || !r.filePath) return null;
+    writeFileSync(r.filePath, content, 'utf8');
+    return r.filePath;
+  });
+  ipcMain.handle('openText', async (_e, exts: string[]) => {
+    const r = await dialog.showOpenDialog(win!, { properties: ['openFile'], filters: [{ name: exts.map((x) => x.toUpperCase()).join(', '), extensions: exts }] });
+    if (r.canceled || !r.filePaths[0]) return null;
+    return { path: r.filePaths[0], content: readFileSync(r.filePaths[0], 'utf8') };
+  });
 }
 
 let quitting = false;
@@ -304,6 +341,14 @@ app.on('before-quit', () => { quitting = true; flushJournal(); });
 
 app.whenReady().then(() => {
   protocol.handle('kmedia', (req) => serveMedia(req));
+  const uiRoot = join(__dirname, '../renderer');
+  protocol.handle('basecut', (req) => {
+    const rel = decodeURIComponent(new URL(req.url).pathname).replace(/^\/+/, '') || 'index.html';
+    const file = join(uiRoot, rel);
+    if (!file.startsWith(uiRoot) || !existsSync(file)) return new Response('not found', { status: 404 });
+    const data = readFileSync(file);
+    return new Response(data, { headers: { 'Content-Type': mimeFor(file) === 'application/octet-stream' ? uiMime(file) : mimeFor(file), 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'credentialless' } });
+  });
   void net; // reserved for remote media later
   registerIpc();
   buildMenu();

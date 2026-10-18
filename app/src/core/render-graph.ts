@@ -26,8 +26,15 @@ export interface ExportSettings {
   preset: 'ultrafast' | 'veryfast' | 'medium' | 'slow';
   /** burn subtitles from this .ass file (rendered by the caption engine) */
   burnSubtitles?: string;
+  /** folder with the caption fonts, so the burn looks exactly like the preview */
+  subtitlesFontsDir?: string;
   /** loudness normalize to this LUFS target, e.g. -14 for social */
   loudnessTarget?: number;
+  /** override output audio format (e.g. 16 kHz mono for speech recognition) */
+  audioSampleRate?: number;
+  audioChannels?: number;
+  /** only mix these audio tracks (others are treated as muted) */
+  onlyAudioTracks?: string[];
 }
 
 export const defaultExport = (output: string): ExportSettings => ({
@@ -181,7 +188,8 @@ export function buildRenderPlan(
     }
     let vout = last;
     if (settings.burnSubtitles) {
-      filters.push(`[${vout}]subtitles='${escapeFilterPath(settings.burnSubtitles)}'[subs]`);
+      const fonts = settings.subtitlesFontsDir ? `:fontsdir='${escapeFilterPath(settings.subtitlesFontsDir)}'` : '';
+      filters.push(`[${vout}]format=yuv420p,subtitles='${escapeFilterPath(settings.burnSubtitles)}'${fonts}[subs]`);
       vout = 'subs';
     }
     const pixFmt = settings.videoCodec === 'prores' ? 'yuv422p10le' : settings.container === 'gif' ? 'rgb24' : 'yuv420p';
@@ -192,7 +200,7 @@ export function buildRenderPlan(
   if (wantAudio) {
     const labels: string[] = [];
     for (const trackId of trackOrder('audio')) {
-      if (!trackAudible(seq, trackId)) continue;
+      if (settings.onlyAudioTracks ? !settings.onlyAudioTracks.includes(trackId) : !trackAudible(seq, trackId)) continue;
       const track = seq.tracks.find((t) => t.id === trackId)!;
       const clips = Object.values(seq.clips).filter((c) => c.trackId === trackId && c.stream === 'audio' && c.enabled);
       for (const c of clips) {
@@ -235,6 +243,8 @@ export function buildRenderPlan(
   if (wantVideo) args.push('-map', '[vout]');
   if (wantAudio) args.push('-map', '[aout]');
   args.push(...videoCodecArgs(settings), ...audioCodecArgs(settings));
+  if (wantAudio && settings.audioSampleRate) args.push('-ar', `${settings.audioSampleRate}`);
+  if (wantAudio && settings.audioChannels) args.push('-ac', `${settings.audioChannels}`);
   if (wantVideo) args.push('-r', r6(fps));
   args.push('-t', r6(total));
   if (settings.container === 'mp4' || settings.container === 'mov') args.push('-movflags', '+faststart');

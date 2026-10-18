@@ -259,12 +259,8 @@ async function exportFrame() {
   useStore.setState({ playbackRes: prev });
   if (!blob) return;
   const buf = new Uint8Array(await blob.arrayBuffer());
-  // write through a data URL → main (small, fine for stills)
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([buf], { type: 'image/png' }));
-  a.download = out.split(/[\\/]/).pop()!;
-  a.click();
-  toast('Kare indirildi', 'success');
+  await window.kurgu.writeBinary(out, buf);
+  toast('Kare kaydedildi', 'success');
 }
 
 // -------------------------------------------------------------------- keys

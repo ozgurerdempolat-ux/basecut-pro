@@ -41,7 +41,7 @@ export interface JobProgress {
 
 export interface WorkerRequest {
   id: string;
-  type: 'probe' | 'assets' | 'export' | 'proxy' | 'cancel' | 'frame';
+  type: 'probe' | 'assets' | 'export' | 'proxy' | 'cancel' | 'frame' | 'speechAudio';
   payload: unknown;
 }
 
@@ -90,4 +90,11 @@ export interface KurguApi {
   revealInFolder(path: string): void;
   setTitle(title: string): void;
   pathExists(paths: string[]): Promise<boolean[]>;
+  /** mix the chosen tracks of a sequence to 16 kHz mono WAV for speech recognition */
+  speechAudio(req: { project: Project; sequenceId: string; trackIds: string[] }): Promise<string>;
+  writeTemp(name: string, content: string): Promise<string>;
+  fontsDir(): Promise<string>;
+  writeBinary(path: string, data: Uint8Array): Promise<string>;
+  saveText(defaultName: string, ext: string, content: string): Promise<string | null>;
+  openText(exts: string[]): Promise<{ path: string; content: string } | null>;
 }

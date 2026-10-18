@@ -121,6 +121,8 @@ export interface Sequence {
   inPoint: number | null;
   outPoint: number | null;
   binId: Id | null;
+  /** caption track (automatic or imported subtitles) */
+  captions?: import('./captions').CaptionTrackData;
 }
 
 export interface Project {

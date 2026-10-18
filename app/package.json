@@ -9,13 +9,15 @@
     "start": "electron-vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "dist:win": "electron-vite build && electron-builder --win",
-    "dist:mac": "electron-vite build && electron-builder --mac",
-    "dist:linux": "electron-vite build && electron-builder --linux"
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:linux": "npm run build && electron-builder --linux"
   },
   "author": "The Base Social",
   "license": "UNLICENSED",
   "devDependencies": {
+    "@expo-google-fonts/montserrat": "^0.4.2",
+    "@huggingface/transformers": "^4.3.1",
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -23,15 +25,15 @@
     "electron": "^44.9.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^6.0.0",
+    "immer": "^11.1.21",
+    "nanoid": "^6.0.2",
     "playwright": "^1.64.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "vitest": "^5.0.5",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1",
-    "zustand": "^5.0.15",
-    "immer": "^11.1.21",
-    "nanoid": "^6.0.2"
+    "zustand": "^5.0.15"
   },
   "dependencies": {
     "ffmpeg-static": "^5.3.0",
@@ -138,6 +140,12 @@
       "es",
       "ar",
       "ru"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/fonts",
+        "to": "fonts"
+      }
     ]
   }
 }

@@ -223,6 +223,77 @@ const projFile = join(outDir, 'test-projesi.kurgu');
 const saved = await page.evaluate(async (p) => window.kurgu.saveProject(window.__kurgu.store.useStore.getState().project, p), projFile);
 check('Proje kaydedildi', saved === projFile && existsSync(projFile));
 
+// ---- captions
+await page.click('.modes button:has-text("Kurgu")').catch(() => {});
+{
+  // speech audio for recognition: 16 kHz mono mix of the chosen tracks
+  const wav = await page.evaluate(async () => {
+    const st = window.__kurgu.store.useStore.getState();
+    const s = window.__kurgu.store.committedSeq(st);
+    const a1 = s.tracks.find((t) => t.name === 'A1').id;
+    return window.kurgu.speechAudio({ project: st.project, sequenceId: s.id, trackIds: [a1] });
+  });
+  const w = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=sample_rate,channels:format=duration', '-of', 'json', wav]).toString());
+  check('Konuşma sesi 16 kHz mono çıkarıldı', w.streams[0].sample_rate === '16000' && w.streams[0].channels === 1, JSON.stringify(w.streams[0]));
+  // full automatic run: here the model server is unreachable, so it must fail gracefully
+  await page.evaluate(() => window.__kurgu.store.useStore.setState({ toasts: [] }));
+  await page.click('.tab:has-text("Altyazı")');
+  await page.waitForSelector('button:has-text("Altyazı oluştur")');
+  await shot(page, '11-altyazi-paneli');
+  await page.click('button:has-text("Altyazı oluştur")');
+  await page.waitForFunction(() => window.__kurgu.store.useStore.getState().toasts.some((t) => /Altyazı|altyazı/.test(t.text)), null, { timeout: 120000 });
+  const msg = await page.evaluate(() => window.__kurgu.store.useStore.getState().toasts.map((t) => t.text).join(' | '));
+  check('Model indirilemezse anlaşılır mesaj, uygulama çalışmaya devam ediyor', /internet|indirilemedi|oluşturulamadı/i.test(msg), msg.slice(0, 160));
+  // inject recognised words (what the model returns) and check the whole caption pipeline
+  await page.evaluate(() => {
+    const k = window.__kurgu;
+    const text = "Merhaba arkadaşlar bugün size Ankara'nın en güzel kahvaltı mekanını tanıtıyoruz. Hadi başlayalım!";
+    let f = 6;
+    const words = text.split(' ').map((x) => { const w = { text: x, start: f, end: f + 9 }; f += 11; return w; });
+    k.store.edit('test captions', (s) => {
+      const tr = k.capcore.emptyCaptions('tr');
+      tr.items = k.capcore.groupWords(words, k.capcore.fitted(tr.style, s.width, s.height), s.fps);
+      s.captions = tr;
+    });
+    k.store.setPlayhead(30);
+  });
+  await page.waitForTimeout(500);
+  const lane = await page.$$eval('.tl-scroll [title]', (els) => els.filter((e) => e.textContent && /Merhaba|ANKARA|Ankara/.test(e.textContent)).length);
+  check('Altyazı timeline satırında görünüyor', lane > 0, `${lane} blok`);
+  await shot(page, '12-altyazi-onizleme');
+  // program monitor shows caption pixels (bright text in the middle band)
+  const bright = await page.evaluate(() => {
+    const c = document.querySelector('.viewer canvas');
+    const ctx = c.getContext('2d');
+    const d = ctx.getImageData(0, Math.floor(c.height * 0.35), c.width, Math.floor(c.height * 0.3)).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i] > 235 && d[i + 1] > 200) n++;
+    return n;
+  });
+  check('Program monitöründe altyazı çiziliyor', bright > 200, `${bright} parlak piksel`);
+  // export frame (canvas must be readable, not tainted)
+  const framePath = join(outDir, 'kare.png');
+  await page.evaluate(async (p) => {
+    const c = document.querySelector('.viewer canvas');
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+    await window.kurgu.writeBinary(p, new Uint8Array(await blob.arrayBuffer()));
+  }, framePath);
+  check('Kareyi dışa aktar çalışıyor', existsSync(framePath));
+  // export with burn-in
+  const capOut = join(outDir, 'altyazili-export.mp4');
+  const capJob = await page.evaluate(async (out) => {
+    const k = window.__kurgu;
+    const st = k.store.useStore.getState();
+    const s = k.store.committedSeq(st);
+    const b = await k.captions.prepareBurn(s, 0);
+    return window.kurgu.exportSequence({ project: st.project, sequenceId: s.id, settings: { output: out, container: 'mp4', videoCodec: 'h264', audioCodec: 'aac', rateControl: 'quality', quality: 26, videoBitrateKbps: 8000, audioBitrateKbps: 128, range: 'all', hardware: 'none', preset: 'ultrafast', burnSubtitles: b.ass, subtitlesFontsDir: b.fonts }, useProxies: false });
+  }, capOut);
+  await page.waitForFunction((id) => window.__kurgu.store.useStore.getState().jobs[id]?.done, capJob.jobId, { timeout: 300000 });
+  const capState = await page.evaluate((id) => window.__kurgu.store.useStore.getState().jobs[id], capJob.jobId);
+  check('Altyazılı export tamamlandı', !capState.error && existsSync(capOut), capState.error ?? '');
+  if (existsSync(capOut)) execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', '1.0', '-i', capOut, '-frames:v', '1', join(outDir, '13-altyazili-export-karesi.png')]);
+}
+
 // ---- export through the real worker
 await page.click('.modes button:has-text("Dışa Aktar")');
 await page.waitForTimeout(500);

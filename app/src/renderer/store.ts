@@ -32,6 +32,7 @@ export interface State {
   zoom: number; // px per frame
   scrollX: number;
   focus: 'project' | 'source' | 'program' | 'timeline';
+  leftTab: 'project' | 'fx' | 'captions';
 
   sourceMediaId: Id | null;
   sourceTime: number;
@@ -75,6 +76,7 @@ export const useStore = create<State>(() => ({
   zoom: 4,
   scrollX: 0,
   focus: 'timeline',
+  leftTab: 'project',
   sourceMediaId: null,
   sourceTime: 0,
   playing: false,

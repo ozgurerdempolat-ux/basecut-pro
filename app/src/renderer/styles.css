@@ -1,3 +1,9 @@
+@font-face { font-family: 'Montserrat'; font-weight: 400; src: url('../../resources/fonts/Montserrat_400Regular.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Montserrat'; font-weight: 500; src: url('../../resources/fonts/Montserrat_400Regular.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Montserrat'; font-weight: 600; src: url('../../resources/fonts/Montserrat_600SemiBold.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Montserrat'; font-weight: 700; src: url('../../resources/fonts/Montserrat_700Bold.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Montserrat'; font-weight: 800; src: url('../../resources/fonts/Montserrat_800ExtraBold.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Montserrat'; font-weight: 900; src: url('../../resources/fonts/Montserrat_900Black.ttf') format('truetype'); font-display: block; }
 :root {
   --bg-0: #0e0e10;
   --bg-1: #151518;
