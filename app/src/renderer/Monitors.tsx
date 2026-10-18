@@ -65,21 +65,21 @@ export function ProgramMonitor() {
           <div className="grow" />
           <button className="icon-btn" title="Giriş işaretle (I)" onClick={() => setSeqField('inPoint', seq.playhead)}>{I.markIn}</button>
           <button className="icon-btn" title="Çıkış işaretle (O)" onClick={() => setSeqField('outPoint', seq.playhead + 1)}>{I.markOut}</button>
-          <button className="icon-btn" title="Girişe git (Shift+I)" onClick={() => seq.inPoint !== null && setPlayhead(seq.inPoint)}>{I.toIn}</button>
+          <button className="icon-btn opt" title="Girişe git (Shift+I)" onClick={() => seq.inPoint !== null && setPlayhead(seq.inPoint)}>{I.toIn}</button>
           <button className="icon-btn" title="1 kare geri (←)" onClick={() => setPlayhead(seq.playhead - 1)}>{I.stepBack}</button>
           <button className="icon-btn" title="Oynat / durdur (Boşluk)" onClick={() => player.toggle()} style={{ color: 'var(--text)' }}>{playing ? I.pause : I.play}</button>
           <button className="icon-btn" title="1 kare ileri (→)" onClick={() => setPlayhead(seq.playhead + 1)}>{I.stepFwd}</button>
-          <button className="icon-btn" title="Çıkışa git (Shift+O)" onClick={() => seq.outPoint !== null && setPlayhead(seq.outPoint - 1)}>{I.toOut}</button>
-          <button className="icon-btn" title="Kaldır (;)" onClick={() => seq.inPoint !== null && seq.outPoint !== null && edit('Kaldır', (s) => ops.lift(s, seq.inPoint!, seq.outPoint!))}>{I.lift}</button>
-          <button className="icon-btn" title="Ayıkla (')" onClick={() => seq.inPoint !== null && seq.outPoint !== null && edit('Ayıkla', (s) => ops.extract(s, seq.inPoint!, seq.outPoint!))}>{I.extract}</button>
-          <button className="icon-btn" title="Kareyi dışa aktar" onClick={() => window.dispatchEvent(new CustomEvent('kurgu-command', { detail: 'export-frame' }))}>{I.camera}</button>
+          <button className="icon-btn opt" title="Çıkışa git (Shift+O)" onClick={() => seq.outPoint !== null && setPlayhead(seq.outPoint - 1)}>{I.toOut}</button>
+          <button className="icon-btn opt" title="Kaldır (;)" onClick={() => seq.inPoint !== null && seq.outPoint !== null && edit('Kaldır', (s) => ops.lift(s, seq.inPoint!, seq.outPoint!))}>{I.lift}</button>
+          <button className="icon-btn opt" title="Ayıkla (')" onClick={() => seq.inPoint !== null && seq.outPoint !== null && edit('Ayıkla', (s) => ops.extract(s, seq.inPoint!, seq.outPoint!))}>{I.extract}</button>
+          <button className="icon-btn opt" title="Kareyi dışa aktar" onClick={() => window.dispatchEvent(new CustomEvent('kurgu-command', { detail: 'export-frame' }))}>{I.camera}</button>
           <div className="grow" />
-          <button className={`icon-btn ${safe ? 'on' : ''}`} title="Güvenli kenar boşlukları" onClick={() => setSafe(!safe)}>{I.safe}</button>
+          <button className={`icon-btn opt ${safe ? 'on' : ''}`} title="Güvenli kenar boşlukları" onClick={() => setSafe(!safe)}>{I.safe}</button>
           <select className="mini" value={res} title="Oynatma çözünürlüğü (zayıf bilgisayarlar için düşürün)" onChange={(e) => useStore.setState({ playbackRes: Number(e.target.value) as 1 | 0.5 | 0.25 })}>
             <option value={1}>Tam</option><option value={0.5}>1/2</option><option value={0.25}>1/4</option>
           </select>
-          <div className="meter" title="Ses seviyesi"><div style={{ height: `${Math.min(100, level * 100)}%` }} /></div>
-          <span className="tc dim" style={{ textAlign: 'right' }}>{framesToTimecode(total, seq.fps)}</span>
+          <div className="meter opt2" title="Ses seviyesi"><div style={{ height: `${Math.min(100, level * 100)}%` }} /></div>
+          <span className="tc dim opt2" style={{ textAlign: 'right' }}>{framesToTimecode(total, seq.fps)}</span>
         </div>
       </div>
     </div>
@@ -205,7 +205,7 @@ export function SourceMonitor() {
           <button className="icon-btn" title="Ekle (,)" onClick={() => sourceEdit('insert')} disabled={!media}>{I.insert}</button>
           <button className="icon-btn" title="Üzerine yaz (.)" onClick={() => sourceEdit('overwrite')} disabled={!media}>{I.overwrite}</button>
           <div className="grow" />
-          <span className="tc dim">{media ? framesToTimecode((outT - inT) * fps, fps) : '--:--:--:--'}</span>
+          <span className="tc dim opt2">{media ? framesToTimecode((outT - inT) * fps, fps) : '--:--:--:--'}</span>
         </div>
       </div>
     </div>

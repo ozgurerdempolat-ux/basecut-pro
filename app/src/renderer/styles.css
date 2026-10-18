@@ -86,9 +86,11 @@ input, select { font: inherit; color: var(--text); }
 .statusbar .grow { flex: 1; }
 
 /* ---------------------------------------------------------------- workspace */
-.workspace { display: grid; min-height: 0; grid-template-rows: var(--top-h, 52%) 5px 1fr; }
-.top-row { display: grid; min-height: 0; grid-template-columns: var(--left-w, 26%) 5px 1fr 5px 1fr; }
-.bottom-row { display: grid; min-height: 0; grid-template-columns: 40px 1fr; }
+.app > * { min-width: 0; }
+.workspace { display: grid; min-height: 0; overflow: hidden; grid-template-rows: minmax(0, var(--top-h, 52%)) 5px minmax(0, 1fr); }
+.top-row { display: grid; min-height: 0; overflow: hidden; grid-template-columns: minmax(0, var(--left-w, 26%)) 5px minmax(0, 1fr) 5px minmax(0, 1fr); }
+.bottom-row { display: grid; min-height: 0; overflow: hidden; grid-template-columns: 40px minmax(0, 1fr); }
+.timeline-panel { min-height: 0; }
 .splitter { background: var(--bg-0); cursor: col-resize; }
 .splitter.h { cursor: row-resize; }
 .splitter:hover { background: var(--accent-dim); }
@@ -99,10 +101,13 @@ input, select { font: inherit; color: var(--text); }
 .panel-tabs .tab { padding: 6px 10px; color: var(--text-3); cursor: pointer; border-radius: 6px; font-weight: 600; }
 .panel-tabs .tab.on { color: var(--text); background: var(--bg-3); }
 .panel-tabs .grow { flex: 1; }
-.panel-body { flex: 1; min-height: 0; position: relative; overflow: auto; }
+.panel-body { flex: 1; min-height: 0; position: relative; overflow-y: auto; overflow-x: hidden; }
+.panel-tabs { overflow: hidden; }
+.panel-tabs .tab { white-space: nowrap; }
 
 /* ---------------------------------------------------------------- project panel */
-.proj-toolbar { display: flex; gap: 6px; padding: 6px; border-bottom: 1px solid var(--line); align-items: center; }
+.proj-toolbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border-bottom: 1px solid var(--line); align-items: center; }
+.proj-toolbar .search { min-width: 90px; }
 .search { flex: 1; background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; outline: none; }
 .search:focus { border-color: var(--accent); }
 .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--thumb, 120px), 1fr)); gap: 8px; padding: 8px; }
@@ -132,7 +137,10 @@ input, select { font: inherit; color: var(--text); }
 .scrubber .range { position: absolute; top: 0; bottom: 0; background: rgba(255, 106, 61, 0.25); }
 .scrubber .head { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--playhead); }
 .scrubber .head::before { content: ''; position: absolute; top: 0; left: -5px; border: 6px solid transparent; border-top-color: var(--playhead); }
-.transport { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-top: 1px solid var(--line); }
+.monitor { container-type: inline-size; }
+.transport { display: flex; align-items: center; gap: 2px; padding: 4px 6px; border-top: 1px solid var(--line); overflow: hidden; }
+@container (max-width: 560px) { .transport .opt { display: none; } .transport .tc { min-width: 0; font-size: 12px; } }
+@container (max-width: 380px) { .transport .opt2 { display: none; } }
 .transport .tc { font: 13px var(--mono); color: var(--accent); min-width: 100px; }
 .transport .tc.dim { color: var(--text-2); }
 .transport .grow { flex: 1; }
@@ -145,7 +153,7 @@ select.mini { background: var(--bg-2); border: 1px solid var(--line); border-rad
 .meter > div { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, var(--ok) 60%, var(--sel) 85%, var(--err)); }
 
 /* ---------------------------------------------------------------- tools */
-.tools { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; background: var(--bg-1); border: 1px solid var(--line); border-radius: 8px; margin: 3px; }
+.tools { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; min-height: 0; overflow-y: auto; overflow-x: hidden; background: var(--bg-1); border: 1px solid var(--line); border-radius: 8px; margin: 3px; }
 .tools .icon-btn { width: 30px; height: 28px; }
 .tools .sep { width: 18px; height: 1px; background: var(--line); margin: 4px 0; }
 
