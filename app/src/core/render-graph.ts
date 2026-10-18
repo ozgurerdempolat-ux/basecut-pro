@@ -3,6 +3,7 @@
 // (later) proxies of nested sequences.
 
 import { AnimatableParam, Clip, MediaItem, Project, Sequence, clipEnd, clipSrcSpan, sequenceDuration } from './model';
+import { EFFECT_BY_ID, TRANSITION_BY_ID, motionOf, transitionWindows } from './fx';
 
 export type VideoCodec = 'h264' | 'hevc' | 'prores' | 'vp9' | 'gif' | 'none';
 export type AudioCodec = 'aac' | 'mp3' | 'pcm' | 'opus' | 'none';
@@ -129,66 +130,143 @@ export function buildRenderPlan(
 
   const trackOrder = (kind: 'video' | 'audio') => seq.tracks.filter((t) => t.kind === kind).map((t) => t.id);
 
-  // ---- video: canvas + one overlay per clip, bottom track first
+  // ---- video: canvas + one overlay per clip, bottom track first; transitions as xfade segments
   if (wantVideo) {
     filters.push(`color=c=black:s=${W}x${H}:r=${r6(fps)}:d=${r6(total)},format=yuva420p[base0]`);
     let last = 'base0';
     let n = 0;
+    const F = seq.fps;
+    const lbl = (p: string) => `${p}${n++}`;
+    const srcAt = (c: Clip, f: number) => (c.speed >= 0
+      ? c.srcIn + ((f - c.start) / F) * Math.abs(c.speed)
+      : c.srcIn + ((clipEnd(c) - f) / F) * Math.abs(c.speed));
+
+    /**
+     * Frames of clip `c` for timeline range [a,b), processed and scaled, with
+     * timestamps starting at `tBase` seconds. Returns overlay labels/positions.
+     * Frames outside the clip (transition handles) come from the media around
+     * it, or repeat the first/last frame when the media runs out.
+     */
+    const layer = (c: Clip, a: number, b: number, tBase: number): { layers: { label: string; x: string; y: string; anim: boolean }[] } | null => {
+      const m = project.media[c.mediaId];
+      if (!m) return null;
+      const lenOut = (b - a) / F;
+      const speed = Math.abs(c.speed) || 1;
+      const isImg = m.kind === 'image';
+      const D = Number.isFinite(m.duration) ? m.duration : Infinity;
+      const i = inputIndex++;
+      const chain: string[] = [];
+      if (isImg) {
+        args.push('-loop', '1', '-framerate', r6(fps), '-t', r6(lenOut + 1 / fps), '-i', resolvePath(m));
+        chain.push(`trim=duration=${r6(lenOut)}`, 'setpts=PTS-STARTPTS', `fps=${r6(fps)}`);
+      } else {
+        const sa = srcAt(c, a), sb = srcAt(c, b);
+        const s0 = Math.min(sa, sb), s1 = Math.max(sa, sb);
+        const lo = Math.max(0, s0), hi = Math.min(D - 0.001, s1);
+        const missingHead = Math.max(0, lo - s0), missingTail = Math.max(0, s1 - hi);
+        const srcLen = Math.max(1 / F, hi - lo);
+        args.push('-ss', r6(lo), '-t', r6(srcLen + 1 / fps), '-i', resolvePath(m));
+        chain.push(`trim=duration=${r6(srcLen)}`);
+        if (c.speed < 0) chain.push('reverse');
+        chain.push(`setpts=(PTS-STARTPTS)/${r6(speed)}`, `fps=${r6(fps)}`);
+        // output-order padding (reverse swaps head and tail)
+        const padStart = (c.speed < 0 ? missingTail : missingHead) / speed;
+        const padEnd = (c.speed < 0 ? missingHead : missingTail) / speed;
+        if (padStart > 0.5 / F || padEnd > 0.5 / F) chain.push(`tpad=start_duration=${r6(padStart)}:start_mode=clone:stop_duration=${r6(padEnd)}:stop_mode=clone`);
+      }
+      const lut = lutFor(c);
+      if (lut) chain.push(`format=rgb24,lut3d=file='${escapeFilterPath(lut)}':interp=tetrahedral`);
+      if (c.color && c.color.vignette < 0) chain.push(`vignette=angle=${r6((Math.PI / 5) * Math.min(1, -c.color.vignette / 60))}:mode=forward`);
+      const sw = m.width || W, sh = m.height || H;
+      let blurfill: Record<string, number> | null = null;
+      for (const e of c.effects ?? []) {
+        if (!e.enabled) continue;
+        const def = EFFECT_BY_ID[e.type];
+        if (!def) continue;
+        if (def.kind === 'blurfill') { blurfill = e.params; continue; }
+        if (def.kind === 'motion') continue;
+        const fstr = def.ffmpeg(e.params, { fps, W, H, sw, sh });
+        if (fstr && fstr !== 'null') chain.push(fstr);
+      }
+      chain.push(`setpts=PTS+${r6(tBase)}/TB`);
+      const src = lbl('src');
+      const layers: { label: string; x: string; y: string; anim: boolean }[] = [];
+      let fgIn = src;
+      if (blurfill) {
+        const bg = lbl('bg'), fg = lbl('fg');
+        filters.push(`[${i}:v]${chain.join(',')},split[${fg}][${bg}in]`);
+        filters.push(`[${bg}in]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=${r6((blurfill.blur / 100) * H)},eq=brightness=${r6(-(blurfill.dim / 100) * 0.5)},format=yuva420p[${bg}]`);
+        layers.push({ label: bg, x: '0', y: '0', anim: false });
+        fgIn = fg;
+      } else {
+        filters.push(`[${i}:v]${chain.join(',')}[${src}]`);
+      }
+      // scale / rotate / opacity, expressions in output time t; L = frame index inside the clip
+      const tf = c.transform;
+      const cs = tBase - (a - c.start) / F;
+      const mo = motionOf(c.effects, H, F);
+      const Lexpr = `((t-${r6(cs)})*${r6(F)})`;
+      const withL = (e: string) => e.replace(/\bL\b/g, Lexpr);
+      const anim = !!mo || [tf.scale, tf.posX, tf.posY, tf.opacity, tf.rotation].some((p) => p.keyframes.length);
+      const sc = `(${paramExpr(tf.scale, cs, F)})${mo ? `*(${withL(mo.scale)})` : ''}`;
+      const fitW = `trunc(min(${W}/iw\\,${H}/ih)*iw*(${sc})/100/2)*2`;
+      const fitH = `trunc(min(${W}/iw\\,${H}/ih)*ih*(${sc})/100/2)*2`;
+      const post: string[] = [`scale=w='${fitW}':h='${fitH}'${anim ? ':eval=frame' : ''}`, 'format=yuva420p'];
+      if (tf.rotation.value || tf.rotation.keyframes.length) post.push(`rotate=a='(${paramExpr(tf.rotation, cs, F)})*PI/180':c=none:ow=rotw(iw):oh=roth(ih)`);
+      const op = tf.opacity.keyframes.length ? null : tf.opacity.value;
+      if (op !== null && op !== 100) post.push(`colorchannelmixer=aa=${r6(op / 100)}`);
+      if (tf.opacity.keyframes.length) post.push(`geq=lum='lum(X,Y)':cb='cb(X,Y)':cr='cr(X,Y)':a='alpha(X,Y)*clip((${paramExpr(tf.opacity, cs, F).replace(/\bt\b/g, 'T')})/100,0,1)'`);
+      const out = lbl('v');
+      filters.push(`[${fgIn}]${post.join(',')}[${out}]`);
+      const x = `(W-w)/2+(${paramExpr(tf.posX, cs, F)})${mo ? `+(${withL(mo.dx)})` : ''}`;
+      const y = `(H-h)/2+(${paramExpr(tf.posY, cs, F)})${mo ? `+(${withL(mo.dy)})` : ''}`;
+      layers.push({ label: out, x, y, anim });
+      return { layers };
+    };
+
+    const overlayAll = (base: string, layers: { label: string; x: string; y: string; anim: boolean }[], enable: string | null): string => {
+      let cur = base;
+      for (const l of layers) {
+        const o = lbl('ov');
+        filters.push(`[${cur}][${l.label}]overlay=x='${l.x}':y='${l.y}':eof_action=pass${enable ? `:enable='${enable}'` : ''}${l.anim ? ':eval=frame' : ''}[${o}]`);
+        cur = o;
+      }
+      return cur;
+    };
+
     for (const trackId of trackOrder('video')) {
       if (!trackVisible(seq, trackId)) continue;
       const clips = Object.values(seq.clips)
         .filter((c) => c.trackId === trackId && c.stream === 'video' && c.enabled)
         .sort((x, y) => x.start - y.start);
+      const { windows: wins, cutStart, cutEnd } = transitionWindows(clips);
+      const windows = wins.map((w) => ({ ...w, type: TRANSITION_BY_ID[w.type]?.xfade ?? 'fade' }));
       for (const c of clips) {
-        const part = visiblePart(c);
-        if (!part) continue;
-        const m = project.media[c.mediaId];
-        if (!m) continue;
-        const headFrames = part.a - c.start;
-        const lenSec = (part.b - part.a) / seq.fps;
-        const outStart = (part.a - from) / seq.fps;
-        const speed = Math.abs(c.speed);
-        let srcStart: number;
-        if (c.speed >= 0) srcStart = c.srcIn + (headFrames / seq.fps) * speed;
-        else srcStart = c.srcIn + ((clipEnd(c) - part.b) / seq.fps) * speed;
-        const srcLen = lenSec * speed;
-        if (m.kind === 'image') {
-          args.push('-loop', '1', '-framerate', r6(fps), '-t', r6(lenSec), '-i', resolvePath(m));
-        } else {
-          args.push('-ss', r6(Math.max(0, srcStart)), '-t', r6(srcLen + 1 / fps), '-i', resolvePath(m));
-        }
-        const i = inputIndex++;
-        const chain: string[] = [];
-        if (m.kind !== 'image') chain.push(`trim=duration=${r6(srcLen)}`);
-        if (c.speed < 0 && m.kind !== 'image') chain.push('reverse');
-        chain.push(`setpts=(PTS-STARTPTS)/${r6(m.kind === 'image' ? 1 : speed)}`);
-        chain.push(`fps=${r6(fps)}`);
-        const lut = lutFor(c);
-        if (lut) chain.push(`format=rgb24,lut3d=file='${escapeFilterPath(lut)}':interp=tetrahedral`);
-        if (c.color && c.color.vignette < 0) chain.push(`vignette=angle=${r6((Math.PI / 5) * Math.min(1, -c.color.vignette / 60))}:mode=forward`);
-        // fit inside the frame (letterbox), like "scale to frame size"
-        const tf = c.transform;
-        const animated = [tf.scale, tf.posX, tf.posY, tf.opacity, tf.rotation].some((p) => p.keyframes.length);
-        const clipStartOut = (c.start - from) / seq.fps;
-        const sc = paramExpr(tf.scale, clipStartOut, seq.fps);
-        const fitW = `trunc(min(${W}/iw\\,${H}/ih)*iw*(${sc})/100/2)*2`;
-        const fitH = `trunc(min(${W}/iw\\,${H}/ih)*ih*(${sc})/100/2)*2`;
-        chain.push(`scale=w='${fitW}':h='${fitH}'${animated ? ':eval=frame' : ''}`);
-        chain.push('format=yuva420p');
-        if (tf.rotation.value || tf.rotation.keyframes.length) {
-          chain.push(`rotate=a='(${paramExpr(tf.rotation, clipStartOut, seq.fps)})*PI/180':c=none:ow=rotw(iw):oh=roth(ih)`);
-        }
-        if (tf.opacity.value !== 100 || tf.opacity.keyframes.length) {
-          chain.push(`colorchannelmixer=aa=${tf.opacity.keyframes.length ? r6(tf.opacity.value / 100) : r6(tf.opacity.value / 100)}`);
-        }
-        chain.push(`setpts=PTS+${r6(outStart)}/TB`);
-        filters.push(`[${i}:v]${chain.join(',')}[v${n}]`);
-        const x = `(W-w)/2+(${paramExpr(tf.posX, clipStartOut, seq.fps)})`;
-        const y = `(H-h)/2+(${paramExpr(tf.posY, clipStartOut, seq.fps)})`;
-        const next = `ov${n}`;
-        filters.push(`[${last}][v${n}]overlay=x='${x}':y='${y}':eof_action=pass:enable='between(t,${r6(outStart)},${r6(outStart + lenSec - 0.5 / fps)})'${animated ? ':eval=frame' : ''}[${next}]`);
-        last = next;
-        n++;
+        const a = Math.max(c.start, from, cutStart.get(c.id) ?? -Infinity);
+        const b = Math.min(clipEnd(c), to, cutEnd.get(c.id) ?? Infinity);
+        if (b <= a) continue;
+        const L = layer(c, a, b, (a - from) / F);
+        if (!L) continue;
+        last = overlayAll(last, L.layers, `between(t,${r6((a - from) / F)},${r6((b - from) / F - 0.5 / fps)})`);
+      }
+      for (const w of windows) {
+        const a = Math.max(w.a, from), b = Math.min(w.b, to);
+        if (b <= a) continue;
+        const len = (w.b - w.a) / F;
+        const canvas = (name: string) => { filters.push(`color=c=black@0:s=${W}x${H}:r=${r6(fps)}:d=${r6(len)},format=yuva420p[${name}]`); return name; };
+        const seg = (c: Clip | null) => {
+          const cv = canvas(lbl('cv'));
+          if (!c) return cv;
+          const L = layer(c, w.a, w.b, 0);
+          return L ? overlayAll(cv, L.layers, null) : cv;
+        };
+        const sa = seg(w.A), sb = seg(w.B);
+        const x = lbl('x');
+        let post = `xfade=transition=${w.type}:duration=${r6(len)}:offset=0`;
+        if (a > w.a) post += `,trim=start=${r6((a - w.a) / F)}`;
+        post += `,setpts=PTS-STARTPTS+${r6((a - from) / F)}/TB`;
+        filters.push(`[${sa}][${sb}]${post}[${x}]`);
+        last = overlayAll(last, [{ label: x, x: '0', y: '0', anim: false }], `between(t,${r6((a - from) / F)},${r6((b - from) / F - 0.5 / fps)})`);
       }
     }
     let vout = last;

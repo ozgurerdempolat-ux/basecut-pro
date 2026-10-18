@@ -25,6 +25,8 @@ export interface State {
 
   selection: Id[];
   selectedMedia: Id[];
+  /** a transition picked in the timeline (by the clip it belongs to) */
+  selTransition: Id | null;
   tool: Tool;
   mode: Mode;
   snap: boolean;
@@ -32,7 +34,7 @@ export interface State {
   zoom: number; // px per frame
   scrollX: number;
   focus: 'project' | 'source' | 'program' | 'timeline';
-  leftTab: 'project' | 'fx' | 'captions' | 'color';
+  leftTab: 'project' | 'fx' | 'captions' | 'color' | 'effects';
 
   sourceMediaId: Id | null;
   sourceTime: number;
@@ -69,6 +71,7 @@ export const useStore = create<State>(() => ({
   preview: null,
   selection: [],
   selectedMedia: [],
+  selTransition: null,
   tool: 'select',
   mode: 'edit',
   snap: true,
@@ -312,7 +315,7 @@ export function setSeqField<K extends 'inPoint' | 'outPoint'>(k: K, v: number | 
 export function selectClips(ids: Id[], additive = false) {
   const seq = activeSeq();
   const withLinks = S().linkedSelection ? ops.withLinked(seq, ids) : ids;
-  set((s) => ({ selection: additive ? [...new Set([...s.selection, ...withLinks])] : withLinks, focus: 'timeline' }));
+  set((s) => ({ selection: additive ? [...new Set([...s.selection, ...withLinks])] : withLinks, focus: 'timeline', selTransition: null }));
 }
 
 // ------------------------------------------------------------------ project files

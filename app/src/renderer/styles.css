@@ -266,3 +266,16 @@ select.mini { background: var(--bg-2); border: 1px solid var(--line); border-rad
 .preflight .item.warn { border-left: 3px solid var(--sel); }
 .preflight .item.err { border-left: 3px solid var(--err); }
 .preflight .item.ok { border-left: 3px solid var(--ok); }
+
+/* ---------------------------------------------------------------- effects library */
+.fx-cat { padding: 6px 12px 2px; color: var(--text-3); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.6px; }
+.fx-item { display: flex; align-items: center; gap: 8px; padding: 5px 12px; cursor: grab; border-radius: 5px; margin: 0 6px; }
+.fx-item:hover { background: var(--bg-3); }
+.fx-badge { font-size: 9px; font-weight: 800; padding: 1px 4px; border-radius: 3px; min-width: 18px; text-align: center; }
+.fx-badge.effect { background: rgba(255, 209, 102, 0.18); color: var(--sel); }
+.fx-badge.transition { background: rgba(108, 196, 255, 0.18); color: #6cc4ff; }
+.trans-block { position: absolute; top: 14px; bottom: 3px; z-index: 4; border-radius: 3px; border: 1px solid rgba(255,255,255,0.7);
+  background: repeating-linear-gradient(135deg, rgba(108,196,255,0.85) 0 6px, rgba(60,120,200,0.85) 6px 12px); cursor: pointer;
+  font-size: 9px; font-weight: 800; color: #04121f; display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap; }
+.trans-block.sel { outline: 2px solid var(--sel); }
+.clip.drop-fx { outline: 2px dashed var(--sel); outline-offset: -2px; }

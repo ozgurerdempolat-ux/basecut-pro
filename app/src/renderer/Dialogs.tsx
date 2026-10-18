@@ -115,7 +115,7 @@ export const SHORTCUTS: [string, string][] = [
   ['Ctrl+K', 'Oynatma kafasında kes'], ['Ctrl+Shift+K', 'Tüm izlerde kes'],
   ['Q / W', 'Önceki / sonraki kesimi oynatma kafasına dalgalı kırp'],
   ['Delete', 'Sil'], ['Shift+Delete', 'Dalgalı sil'], ['Alt + ← / →', 'Klibi 1 kare it'],
-  ['Ctrl+R', 'Hız / süre'], ['Ctrl+L', 'Bağla / bağlantıyı kaldır'], ['Shift+E', 'Klibi etkinleştir / devre dışı'],
+  ['Ctrl+D', 'Çapraz geçiş ekle'], ['Ctrl+R', 'Hız / süre'], ['Ctrl+L', 'Bağla / bağlantıyı kaldır'], ['Shift+E', 'Klibi etkinleştir / devre dışı'],
   ['M', 'Marker ekle'], ['Shift+M', 'Sonraki markere git'], ['S', 'Yapıştırma (snap) aç/kapat'],
   ['= / -', 'Timeline yakınlaştır / uzaklaştır'], ['\\', 'Sekansı sığdır'],
   ['Ctrl+Z / Ctrl+Shift+Z', 'Geri al / yinele'], ['Ctrl+C / X / V', 'Kopyala / kes / yapıştır'],

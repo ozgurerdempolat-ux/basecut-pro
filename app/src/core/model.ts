@@ -100,6 +100,10 @@ export interface Clip {
   volumeDb: AnimatableParam;
   /** colour grade (Color panel); absent = untouched */
   color?: import('./color').ColorGrade;
+  /** applied video effects, in order */
+  effects?: import('./fx').ClipEffect[];
+  /** transition into this clip (from the clip that ends where this one starts, or from black) */
+  transIn?: import('./fx').TransitionSpec;
 }
 
 export interface Marker {

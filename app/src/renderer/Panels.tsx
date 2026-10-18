@@ -3,6 +3,7 @@ import { AnimatableParam, Clip, LabelColor, MediaItem, evalParam, framesToTimeco
 import { I } from './icons';
 import { CaptionsPanel } from './Captions';
 import { ColorPanel } from './ColorPanel';
+import { EffectStack, EffectsLibrary, TransitionControls } from './Effects';
 import { createTitle, updateTitle } from './titles';
 import { TITLE_FONTS, TITLE_PRESETS, TitleData } from '../core/title';
 import { Tool, activeSeq, committedSeq, edit, editProject, importPaths, setPlayhead, useStore } from './store';
@@ -28,7 +29,7 @@ export function ProjectPanel() {
   const [thumb, setThumb] = useState(130);
   const [over, setOver] = useState(false);
   const tab = useStore((s) => s.leftTab);
-  const setTab = (t: 'project' | 'fx' | 'captions' | 'color') => useStore.setState({ leftTab: t });
+  const setTab = (t: 'project' | 'fx' | 'captions' | 'color' | 'effects') => useStore.setState({ leftTab: t });
   const items = useMemo(() => Object.values(media).filter((m) => m.name.toLowerCase().includes(q.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name)), [media, q]);
 
   const open = async () => {
@@ -56,12 +57,13 @@ export function ProjectPanel() {
       }}>
       <div className="panel-tabs">
         <div className={`tab ${tab === 'project' ? 'on' : ''}`} onClick={() => setTab('project')}>Proje</div>
+        <div className={`tab ${tab === 'effects' ? 'on' : ''}`} onClick={() => setTab('effects')}>Efektler</div>
         <div className={`tab ${tab === 'fx' ? 'on' : ''}`} onClick={() => setTab('fx')}>Efekt Kontrolleri</div>
         <div className={`tab ${tab === 'color' ? 'on' : ''}`} onClick={() => setTab('color')}>Renk</div>
         <div className={`tab ${tab === 'captions' ? 'on' : ''}`} onClick={() => setTab('captions')}>Altyazı</div>
         <div className="grow" />
       </div>
-      {tab === 'color' ? <ColorPanel /> : tab === 'captions' ? <CaptionsPanel /> : tab === 'fx' ? <EffectControls /> : (
+      {tab === 'effects' ? <EffectsLibrary /> : tab === 'color' ? <ColorPanel /> : tab === 'captions' ? <CaptionsPanel /> : tab === 'fx' ? <EffectControls /> : (
         <>
           <div className="proj-toolbar">
             <input className="search" placeholder="Ara…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
@@ -174,6 +176,7 @@ export function EffectControls() {
   return (
     <div className="panel-body fx-panel">
       {media?.title && <TitleEditor key={media.id + media.title.text} mediaId={media.id} data={media.title} />}
+      <TransitionControls clip={clip} seq={seq} />
       <div style={{ padding: '4px 10px 8px', color: 'var(--text-2)' }}>
         <b style={{ color: 'var(--text)' }}>{clip.name}</b> · {framesToTimecode(clip.duration, seq.fps)} · Hız %{Math.round(clip.speed * 100)}
       </div>
@@ -189,6 +192,10 @@ export function EffectControls() {
             <ParamRow clip={clip} k="opacity" label="Opaklık" local={local} step={1} unit="%" min={0} max={100} />
           </Group>
         </>
+      )}
+      <EffectStack clip={clip} />
+      {clip.stream === 'video' && !(clip.effects ?? []).length && (
+        <div style={{ padding: '6px 10px', color: 'var(--text-3)' }}>Efekt eklemek için <a href="#" onClick={(e) => { e.preventDefault(); useStore.setState({ leftTab: 'effects' }); }} style={{ color: 'var(--accent)' }}>Efektler</a> sekmesinden klibe sürükleyin.</div>
       )}
       {clip.stream === 'audio' && (
         <Group title="Ses Seviyesi">

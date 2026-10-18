@@ -370,6 +370,83 @@ await page.click('.modes button:has-text("Kurgu")').catch(() => {});
   await page.evaluate((id) => window.__kurgu.store.edit('undo grade', (s) => { delete s.clips[id].color; }), target);
 }
 
+// ---- effects & transitions
+{
+  await page.evaluate(() => window.__kurgu.store.useStore.setState({ leftTab: 'effects', selection: [], toasts: [] }));
+  await page.waitForSelector('.fx-item');
+  const counts = await page.evaluate(() => ({ items: document.querySelectorAll('.fx-item').length }));
+  check('Efekt kütüphanesi dolu (30+ geçiş, 20+ efekt)', counts.items >= 50, `${counts.items} öğe`);
+  await shot(page, '16-efektler-kutuphanesi');
+  // drag "Çapraz geçiş" onto the first cut of V1
+  const cut = await page.evaluate(() => {
+    const s = window.__kurgu.store.committedSeq();
+    const v1 = s.tracks.find((t) => t.name === 'V1').id;
+    const cs = Object.values(s.clips).filter((c) => c.trackId === v1).sort((a, b) => a.start - b.start);
+    return { frame: cs[1].start, id: cs[1].id };
+  });
+  async function dragFx(selector, frame, laneIndex) {
+    const item = await page.$(selector);
+    const lanes = await page.$$('.lane');
+    const lb = await lanes[laneIndex].boundingBox();
+    const zoom = await page.evaluate(() => window.__kurgu.store.useStore.getState().zoom);
+    const sl = await page.evaluate(() => document.querySelector('.tl-scroll').scrollLeft);
+    const x = lb.x + frame * zoom - sl, y = lb.y + lb.height / 2;
+    const dt = await page.evaluateHandle(() => new DataTransfer());
+    await item.dispatchEvent('dragstart', { dataTransfer: dt });
+    const target = await page.$('.tl-scroll');
+    await target.dispatchEvent('dragover', { dataTransfer: dt, clientX: x, clientY: y });
+    await target.dispatchEvent('drop', { dataTransfer: dt, clientX: x, clientY: y });
+  }
+  await page.evaluate(() => { const el = document.querySelector('.tl-scroll'); el.scrollLeft = 0; });
+  const lanesNow = await page.$$eval('.lane', (ls) => ls.length);
+  const v1Index = await page.evaluate(() => { const s = window.__kurgu.store.committedSeq(); const vids = s.tracks.filter((t) => t.kind === 'video'); return vids.length - 1 - vids.findIndex((t) => t.name === 'V1'); });
+  await dragFx('.fx-item:has-text("Çapraz geçiş")', cut.frame, v1Index);
+  await page.waitForTimeout(200);
+  const tr = await page.evaluate((id) => window.__kurgu.store.committedSeq().clips[id].transIn, cut.id);
+  check('Geçiş sürükle-bırak ile kesime eklendi', tr && tr.type === 'cross' && tr.duration === 30, JSON.stringify(tr) + ` (lanes ${lanesNow})`);
+  const blocks = await page.$$eval('.trans-block', (b) => b.length);
+  check('Geçiş timeline\'da görünüyor', blocks >= 1, `${blocks} blok`);
+  // effect on the clip after the cut
+  await page.evaluate(() => window.__kurgu.store.useStore.setState({ leftTab: 'effects' }));
+  await page.waitForSelector('.fx-item');
+  await dragFx('.fx-item:has-text("Siyah beyaz")', cut.frame + 40, v1Index);
+  await page.waitForTimeout(200);
+  const fx = await page.evaluate((id) => (window.__kurgu.store.committedSeq().clips[id].effects ?? []).map((e) => e.type), cut.id);
+  check('Efekt sürükle-bırak ile klibe eklendi', fx.includes('bw'), JSON.stringify(fx));
+  // preview mid-transition is a mix, then black-and-white after it
+  await page.evaluate((f) => window.__kurgu.store.setPlayhead(f + 60), cut.frame);
+  await page.waitForTimeout(900);
+  const sat = await page.evaluate(() => {
+    const c = document.querySelector('.viewer canvas');
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let col = 0, n = 0;
+    for (let i = 0; i < d.length; i += 40) { n++; if (Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]) > 30) col++; }
+    return col / n;
+  });
+  check('Siyah-beyaz efekti önizlemede uygulanıyor', sat < 0.05, `renkli oran ${sat.toFixed(3)}`);
+  await page.evaluate((f) => window.__kurgu.store.setPlayhead(f), cut.frame);
+  await page.waitForTimeout(900);
+  await page.evaluate((id) => window.__kurgu.store.useStore.setState({ selection: [id], leftTab: 'fx' }), cut.id);
+  await page.waitForTimeout(300);
+  await shot(page, '17-gecis-ve-efekt');
+  // Ctrl+D somewhere else
+  const before = await page.evaluate(() => Object.values(window.__kurgu.store.committedSeq().clips).filter((c) => c.transIn).length);
+  await page.evaluate(() => { const k = window.__kurgu.store; k.useStore.setState({ selection: [] }); const s = k.committedSeq(); const v1 = s.tracks.find((t) => t.name === 'V1').id; const cs = Object.values(s.clips).filter((c) => c.trackId === v1).sort((a, b) => a.start - b.start); k.setPlayhead(cs[2].start + 2); });
+  await page.click('.tl-scroll', { position: { x: 5, y: 120 } });
+  await page.keyboard.press('Control+d');
+  const after = await page.evaluate(() => Object.values(window.__kurgu.store.committedSeq().clips).filter((c) => c.transIn).length);
+  check('Ctrl+D varsayılan geçiş ekledi', after === before + 1, `${before} → ${after}`);
+  // a few more effects for the export test
+  await page.evaluate((id) => {
+    const k = window.__kurgu.store;
+    const s = k.committedSeq();
+    const v2 = Object.values(s.clips).find((c) => c.name === 'logo.png');
+    k.edit('fx test', (q) => {
+      q.clips[v2.id].effects = [{ id: 'g', type: 'glitch', enabled: true, params: { amount: 60 } }, { id: 's', type: 'shake', enabled: true, params: { amount: 1, speed: 1 } }];
+    });
+  }, cut.id);
+}
+
 // ---- export through the real worker
 await page.click('.modes button:has-text("Dışa Aktar")');
 await page.waitForTimeout(500);

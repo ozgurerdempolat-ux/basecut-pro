@@ -8,6 +8,8 @@ import { activeSeq, committedSeq, playbackPath, setPlayhead, useStore } from './
 import { drawCaptions } from './Captions';
 import { grader } from './grader';
 import { isNeutral } from '../core/color';
+import { EFFECT_BY_ID, motionAt, transitionWindows } from '../core/fx';
+import { applyEffects, drawBlurFill, drawTransition, release, tmpCanvas } from './fxPreview';
 
 type Visual = { el: HTMLVideoElement | HTMLImageElement; path: string; ready: boolean };
 type Sound = { el: HTMLMediaElement; path: string; gain: GainNode | null; src: MediaElementAudioSourceNode | null };
@@ -178,49 +180,75 @@ class Player {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
     const media = st.project.media;
-    const videoTracks = seq.tracks.filter((t) => t.kind === 'video');
     const live = new Set<string>();
-    // preload clips about to start so cuts are seamless
     const lookahead = playing ? Math.round(seq.fps * 1.5 * Math.abs(rate)) : 0;
-    for (const t of videoTracks) {
+    for (const t of seq.tracks.filter((x) => x.kind === 'video')) {
       if (t.muted) continue;
-      for (const c of Object.values(seq.clips)) {
-        if (c.trackId !== t.id || c.stream !== 'video' || !c.enabled) continue;
-        const inside = frame >= c.start && frame < clipEnd(c);
+      const clips = Object.values(seq.clips).filter((c) => c.trackId === t.id && c.stream === 'video' && c.enabled).sort((a, b) => a.start - b.start);
+      const { windows, cutStart, cutEnd } = transitionWindows(clips);
+      for (const c of clips) {
+        const a = Math.max(c.start, cutStart.get(c.id) ?? -Infinity);
+        const b = Math.min(clipEnd(c), cutEnd.get(c.id) ?? Infinity);
+        const inside = frame >= a && frame < b;
         const soon = lookahead && c.start > frame && c.start - frame < lookahead;
-        if (!inside && !soon) continue;
+        const inWin = windows.some((w) => (w.A?.id === c.id || w.B.id === c.id) && frame >= w.a - lookahead && frame < w.b);
+        if (!inside && !soon && !inWin) continue;
         const m = media[c.mediaId];
         if (!m) continue;
-        const v = this.visualFor(c, m);
-        if (!v) { if (inside) this.drawOffline(ctx, W, H, m); continue; }
         live.add(c.id);
-        if (soon && !inside) {
-          if (v.el instanceof HTMLVideoElement) {
-            const t0 = c.speed >= 0 ? c.srcIn : c.srcIn + (c.duration / seq.fps) * Math.abs(c.speed);
-            if (Math.abs(v.el.currentTime - t0) > 0.05 && v.el.paused) v.el.currentTime = t0;
-          }
-          continue;
-        }
-        const srcT = sourceTimeAt(c, frame, seq.fps) ?? c.srcIn;
-        if (v.el instanceof HTMLVideoElement) {
-          const el = v.el;
-          const forward = playing && c.speed > 0 && rate > 0;
-          const pr = Math.abs(c.speed * rate);
-          if (forward && pr <= 16) {
-            if (Math.abs(el.playbackRate - pr) > 1e-3) el.playbackRate = pr;
-            if (el.paused) { el.currentTime = srcT; void el.play().catch(() => {}); }
-            else if (Math.abs(el.currentTime - srcT) > 0.25) el.currentTime = srcT;
-          } else {
-            if (!el.paused) el.pause();
-            if (Math.abs(el.currentTime - srcT) > 0.5 / seq.fps) el.currentTime = srcT;
-          }
-        }
-        if (!v.ready) continue;
-        this.drawClip(ctx, v.el, c, m, frame - c.start, W, H, seq, res);
+        if (inside) this.drawClipAt(ctx, c, m, frame, W, H, seq, res, playing, rate);
+        else if (soon) this.preroll(c, m, seq);
+      }
+      const w = windows.find((x) => frame >= x.a && frame < x.b);
+      if (w) {
+        const tA = tmpCanvas(W, H), tB = tmpCanvas(W, H);
+        const ca = tA.getContext('2d')!, cb = tB.getContext('2d')!;
+        ca.clearRect(0, 0, W, H); cb.clearRect(0, 0, W, H);
+        if (w.A && media[w.A.mediaId]) this.drawClipAt(ca, w.A, media[w.A.mediaId], frame, W, H, seq, res, playing, rate);
+        if (media[w.B.mediaId]) this.drawClipAt(cb, w.B, media[w.B.mediaId], frame, W, H, seq, res, playing, rate);
+        drawTransition(ctx, tA, tB, w.type, (frame - w.a) / Math.max(1, w.b - w.a));
+        release(tA); release(tB);
       }
     }
     for (const id of this.visuals.keys()) if (!live.has(id)) this.dispose(id);
     drawCaptions(ctx, seq, frame, W, H);
+  }
+
+  /** source time for a timeline frame, also outside the clip (transition handles), clamped to the media */
+  private srcTime(c: Clip, m: MediaItem, f: number, fps: number): number {
+    const sp = Math.abs(c.speed) || 1;
+    let s = c.speed >= 0 ? c.srcIn + ((f - c.start) / fps) * sp : c.srcIn + ((clipEnd(c) - f) / fps) * sp;
+    if (Number.isFinite(m.duration)) s = Math.min(m.duration - 0.02, s);
+    return Math.max(0, s);
+  }
+
+  private preroll(c: Clip, m: MediaItem, seq: Sequence) {
+    const v = this.visualFor(c, m);
+    if (v && v.el instanceof HTMLVideoElement) {
+      const t0 = this.srcTime(c, m, c.start, seq.fps);
+      if (Math.abs(v.el.currentTime - t0) > 0.05 && v.el.paused) v.el.currentTime = t0;
+    }
+  }
+
+  private drawClipAt(ctx: CanvasRenderingContext2D, c: Clip, m: MediaItem, frame: number, W: number, H: number, seq: Sequence, res: number, playing: boolean, rate: number) {
+    const v = this.visualFor(c, m);
+    if (!v) { this.drawOffline(ctx, W, H, m); return; }
+    const srcT = this.srcTime(c, m, frame, seq.fps);
+    if (v.el instanceof HTMLVideoElement) {
+      const el = v.el;
+      const forward = playing && c.speed > 0 && rate > 0;
+      const pr = Math.abs(c.speed * rate);
+      if (forward && pr <= 16) {
+        if (Math.abs(el.playbackRate - pr) > 1e-3) el.playbackRate = pr;
+        if (el.paused) { el.currentTime = srcT; void el.play().catch(() => {}); }
+        else if (Math.abs(el.currentTime - srcT) > 0.25) el.currentTime = srcT;
+      } else {
+        if (!el.paused) el.pause();
+        if (Math.abs(el.currentTime - srcT) > 0.5 / seq.fps) el.currentTime = srcT;
+      }
+    }
+    if (!v.ready) return;
+    this.drawClip(ctx, v.el, c, m, frame - c.start, W, H, seq, res);
   }
 
   private drawOffline(ctx: CanvasRenderingContext2D, W: number, H: number, m: MediaItem) {
@@ -237,21 +265,38 @@ class Player {
     const ih = el instanceof HTMLVideoElement ? el.videoHeight : el.naturalHeight;
     if (!iw || !ih) return;
     const t = c.transform;
+    const mo = motionAt(c.effects, H, seq.fps, local);
     const fit = Math.min(W / iw, H / ih);
-    const scale = evalParam(t.scale, local) / 100;
+    const scale = (evalParam(t.scale, local) / 100) * mo.scale;
     const w = iw * fit * scale;
     const h = ih * fit * scale;
-    const x = W / 2 + evalParam(t.posX, local) * res;
-    const y = H / 2 + evalParam(t.posY, local) * res;
+    const x = W / 2 + evalParam(t.posX, local) * res + mo.dx;
+    const y = H / 2 + evalParam(t.posY, local) * res + mo.dy;
+    let frameSrc: CanvasImageSource = el;
+    const graded = c.color && (!isNeutral(c.color) || c.color.vignette) ? grader.process(el, c.color, Math.ceil(w)) : null;
+    if (graded) frameSrc = graded;
+    const fill = c.effects?.find((e) => e.enabled && e.type === 'blurfill');
+    if (fill) drawBlurFill(ctx, frameSrc, iw, ih, W, H, fill.params);
+    let tmp: HTMLCanvasElement | null = null;
+    if (c.effects?.some((e) => e.enabled && EFFECT_BY_ID[e.type] && !EFFECT_BY_ID[e.type].kind)) {
+      // effects work on the frame at the size it will be drawn (capped for speed)
+      const k = Math.min(1, 960 / Math.max(1, w));
+      const ew = Math.max(2, Math.round(w * k)), eh = Math.max(2, Math.round(h * k));
+      tmp = tmpCanvas(ew, eh);
+      const tc = tmp.getContext('2d', { willReadFrequently: true })!;
+      tc.clearRect(0, 0, ew, eh);
+      tc.drawImage(frameSrc, 0, 0, ew, eh);
+      applyEffects(tmp, c.effects, local, (eh / h) * H);
+      frameSrc = tmp;
+    }
     ctx.save();
     ctx.globalAlpha = Math.max(0, Math.min(1, evalParam(t.opacity, local) / 100));
     ctx.translate(x, y);
     const rot = evalParam(t.rotation, local);
     if (rot) ctx.rotate((rot * Math.PI) / 180);
-    const graded = c.color && (!isNeutral(c.color) || c.color.vignette) ? grader.process(el, c.color, Math.ceil(w)) : null;
-    ctx.drawImage(graded ?? el, -w / 2, -h / 2, w, h);
+    ctx.drawImage(frameSrc, -w / 2, -h / 2, w, h);
     ctx.restore();
-    void m;
+    if (tmp) release(tmp);
   }
 
   private syncAudio(seq: Sequence, f: number, playing: boolean, rate: number) {
