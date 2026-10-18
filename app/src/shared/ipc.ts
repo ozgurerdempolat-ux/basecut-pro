@@ -95,6 +95,7 @@ export interface KurguApi {
   writeTemp(name: string, content: string): Promise<string>;
   fontsDir(): Promise<string>;
   writeBinary(path: string, data: Uint8Array): Promise<string>;
+  writeCache(name: string, data: Uint8Array): Promise<string>;
   saveText(defaultName: string, ext: string, content: string): Promise<string | null>;
   openText(exts: string[]): Promise<{ path: string; content: string } | null>;
 }

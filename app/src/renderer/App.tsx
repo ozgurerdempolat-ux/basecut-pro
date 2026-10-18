@@ -13,7 +13,7 @@ import {
 } from './store';
 import { Timeline, fitZoom } from './Timeline';
 
-const TOOL_KEYS: Record<string, Tool> = { v: 'select', a: 'trackSelect', b: 'ripple', n: 'roll', r: 'rate', c: 'razor', y: 'slip', u: 'slide', h: 'hand', z: 'zoom' };
+const TOOL_KEYS: Record<string, Tool> = { v: 'select', a: 'trackSelect', b: 'ripple', n: 'roll', r: 'rate', c: 'razor', y: 'slip', u: 'slide', h: 'hand', z: 'zoom', t: 'type' };
 
 export function App() {
   const mode = useStore((s) => s.mode);

@@ -31,6 +31,8 @@ export interface MediaItem {
   /** remembered source-monitor marks, seconds */
   markIn: number | null;
   markOut: number | null;
+  /** set for generated titles: the design the image was rendered from */
+  title?: import('./title').TitleData;
 }
 
 export interface Bin {

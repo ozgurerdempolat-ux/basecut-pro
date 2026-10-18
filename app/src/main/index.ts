@@ -322,6 +322,13 @@ function registerIpc() {
   });
   ipcMain.handle('fontsDir', () => fontsDir());
   ipcMain.handle('writeBinary', (_e, path: string, data: Uint8Array) => { writeFileSync(path, Buffer.from(data)); return path; });
+  ipcMain.handle('writeCache', (_e, name: string, data: Uint8Array) => {
+    const dir = join(cacheDir(), 'generated');
+    mkdirSync(dir, { recursive: true });
+    const p = join(dir, name.replace(/[^\w.-]/g, '_'));
+    if (!existsSync(p)) writeFileSync(p, Buffer.from(data));
+    return p;
+  });
 
   ipcMain.handle('saveText', async (_e, name: string, ext: string, content: string) => {
     const r = await dialog.showSaveDialog(win!, { defaultPath: join(app.getPath('documents'), `${name}.${ext}`), filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });

@@ -33,6 +33,7 @@ const api: KurguApi = {
   writeTemp: (name, content) => ipcRenderer.invoke('writeTemp', name, content),
   fontsDir: () => ipcRenderer.invoke('fontsDir'),
   writeBinary: (path, data) => ipcRenderer.invoke('writeBinary', path, data),
+  writeCache: (name, data) => ipcRenderer.invoke('writeCache', name, data),
   saveText: (name, ext, content) => ipcRenderer.invoke('saveText', name, ext, content),
   openText: (exts) => ipcRenderer.invoke('openText', exts),
 };

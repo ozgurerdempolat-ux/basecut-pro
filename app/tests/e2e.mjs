@@ -294,6 +294,37 @@ await page.click('.modes button:has-text("Kurgu")').catch(() => {});
   if (existsSync(capOut)) execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', '1.0', '-i', capOut, '-frames:v', '1', join(outDir, '13-altyazili-export-karesi.png')]);
 }
 
+// ---- titles
+{
+  await page.evaluate(() => window.__kurgu.store.setPlayhead(150));
+  const clipId = await page.evaluate(() => window.__kurgu.titles.createTitle('kanca'));
+  await page.waitForTimeout(300);
+  const info = await page.evaluate((id) => {
+    const st = window.__kurgu.store.useStore.getState();
+    const s = window.__kurgu.store.committedSeq(st);
+    const c = s.clips[id];
+    const m = st.project.media[c.mediaId];
+    return { track: s.tracks.find((t) => t.id === c.trackId).name, path: m.path, title: !!m.title, dur: c.duration };
+  }, clipId);
+  check('Başlık şablonu klip olarak eklendi', info.title && existsSync(info.path) && info.dur === 90 && info.track !== 'V1', JSON.stringify(info).slice(0, 120));
+  const mid = await page.evaluate((id) => window.__kurgu.store.committedSeq().clips[id].mediaId, clipId);
+  await page.evaluate((m) => window.__kurgu.titles.updateTitle(m, { text: 'İNDİRİM BAŞLADI', color: '#ffd400' }), mid);
+  const path2 = await page.evaluate((m) => window.__kurgu.store.useStore.getState().project.media[m].path, mid);
+  check('Başlık metni düzenlenince görsel yeniden üretildi', path2 !== info.path && existsSync(path2));
+  await page.evaluate((id) => { window.__kurgu.store.selectClips([id]); window.__kurgu.store.useStore.setState({ leftTab: 'fx' }); }, clipId);
+  await page.waitForTimeout(500);
+  await shot(page, '14-baslik');
+  // yellow title pixels in the program monitor
+  const yellow = await page.evaluate(() => {
+    const c = document.querySelector('.viewer canvas');
+    const d = c.getContext('2d').getImageData(0, 0, c.width, Math.floor(c.height * 0.4)).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i] > 220 && d[i + 1] > 180 && d[i + 2] < 60) n++;
+    return n;
+  });
+  check('Başlık program monitöründe görünüyor', yellow > 300, `${yellow} sarı piksel`);
+}
+
 // ---- export through the real worker
 await page.click('.modes button:has-text("Dışa Aktar")');
 await page.waitForTimeout(500);

@@ -10,4 +10,5 @@ import { player } from './player';
 import * as ops from '../core/ops';
 import * as captions from './Captions';
 import * as capcore from '../core/captions';
-(window as unknown as { __kurgu: unknown }).__kurgu = { store, player, ops, captions, capcore };
+import * as titles from './titles';
+(window as unknown as { __kurgu: unknown }).__kurgu = { store, player, ops, captions, capcore, titles };

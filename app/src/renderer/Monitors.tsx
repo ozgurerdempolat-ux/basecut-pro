@@ -4,6 +4,7 @@ import * as ops from '../core/ops';
 import { I } from './icons';
 import { player } from './player';
 import { committedSeq, edit, editProject, playbackPath, setPlayhead, setSeqField, useStore } from './store';
+import { createTitle, updateTitle } from './titles';
 
 // -------------------------------------------------------------------- program monitor
 
@@ -37,7 +38,18 @@ export function ProgramMonitor() {
         {playing && fpsShown > 0 && fpsShown < seq.fps * 0.8 && <span className="pill warn" title="Bu bilgisayar tam hızda oynatamıyor. Oynatma çözünürlüğünü düşürün veya proxy kullanın.">düşen kare</span>}
       </div>
       <div className="monitor">
-        <div className="viewer" onDoubleClick={() => player.toggle()}>
+        <div className="viewer" onDoubleClick={() => player.toggle()} style={{ cursor: useStore.getState().tool === 'type' ? 'text' : undefined }}
+          onMouseDown={async (e) => {
+            if (useStore.getState().tool !== 'type' || !canvasRef.current) return;
+            // Type tool: click where the title should sit
+            const r = canvasRef.current.getBoundingClientRect();
+            const x = Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100));
+            const y = Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100));
+            const clipId = await createTitle('sade');
+            const st = useStore.getState();
+            const c = committedSeq(st).clips[clipId];
+            if (c) await updateTitle(c.mediaId, { x, y, text: 'Metin' });
+          }}>
           <canvas ref={canvasRef} style={{ aspectRatio: `${seq.width}/${seq.height}` }} />
           {safe && <SafeMargins w={seq.width} h={seq.height} />}
           {total === 0 && <div className="overlay-text">Proje panelinden klip sürükleyin veya içe aktarın</div>}

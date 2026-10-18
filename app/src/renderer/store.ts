@@ -334,6 +334,8 @@ export async function openProject() {
 }
 
 export function loadProject(project: Project, path: string | null) {
+  // JSON has no Infinity: stills come back with duration null
+  project = produce(project, (d) => { for (const m of Object.values(d.media)) if (m.kind === 'image' && !Number.isFinite(m.duration as number)) m.duration = Infinity; });
   set({ project, projectPath: path, past: [], future: [], selection: [], dirty: false, preview: null, sourceMediaId: null });
   for (const m of Object.values(project.media)) void loadAssets(m);
   void window.kurgu.pathExists(Object.values(project.media).map((m) => m.path)).then((exists) => {
