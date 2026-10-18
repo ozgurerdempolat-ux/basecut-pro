@@ -58,10 +58,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions: { contents: write }
     steps:
-      - uses: actions/download-artifact@v4
-        with: { path: dist, merge-multiple: true }
       - uses: actions/checkout@v4
         with: { sparse-checkout: app/package.json }
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
       - id: ver
         run: echo "v=$(node -p "require('./app/package.json').version")" >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v2
