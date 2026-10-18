@@ -79,6 +79,8 @@ input, select { font: inherit; color: var(--text); }
 .btn.ghost:hover { background: var(--bg-3); }
 .btn.small { padding: 2px 7px; font-size: 11px; }
 .btn:disabled { opacity: 0.4; cursor: default; }
+.btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+.btn.big { padding: 9px 14px; font-size: 13px; justify-content: center; }
 
 .statusbar { display: flex; align-items: center; gap: 14px; padding: 0 10px; background: var(--bg-1); border-top: 1px solid var(--line); color: var(--text-3); font-size: 11px; }
 .statusbar .grow { flex: 1; }
@@ -120,7 +122,8 @@ input, select { font: inherit; color: var(--text); }
 .drop-hint { position: absolute; inset: 6px; border: 2px dashed var(--accent); border-radius: 8px; background: var(--accent-dim); display: flex; align-items: center; justify-content: center; font-weight: 700; pointer-events: none; z-index: 5; }
 
 /* ---------------------------------------------------------------- monitors */
-.monitor { display: flex; flex-direction: column; height: 100%; }
+.monitor { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.monitor .transport, .monitor .scrubber { flex-shrink: 0; }
 .viewer { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #050506; position: relative; overflow: hidden; }
 .viewer canvas, .viewer video { max-width: 100%; max-height: 100%; background: #000; }
 .viewer .overlay-text { position: absolute; color: var(--text-3); }
@@ -234,14 +237,19 @@ select.mini { background: var(--bg-2); border: 1px solid var(--line); border-rad
 .shortcut-grid div { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
 
 /* ---------------------------------------------------------------- export mode */
-.export-mode { display: grid; grid-template-columns: 380px 1fr; gap: 0; min-height: 0; }
-.export-side { background: var(--bg-1); border-right: 1px solid var(--line); overflow: auto; padding: 14px; display: grid; gap: 14px; align-content: start; }
+.export-mode { display: grid; grid-template-columns: 360px 1fr; gap: 0; min-height: 0; }
+.export-side { background: var(--bg-1); border-right: 1px solid var(--line); overflow-y: auto; overflow-x: hidden; padding: 14px; display: grid; gap: 14px; align-content: start; min-width: 0; }
+.export-side .field { grid-template-columns: 112px minmax(0, 1fr); }
+.export-side .field select, .export-side .field input[type=text] { width: 100%; min-width: 0; }
+.export-side .preset { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .export-side h3 { margin: 0 0 6px; font-size: 12px; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.6px; }
 .preset-list { display: grid; gap: 4px; }
 .preset { padding: 8px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-2); cursor: pointer; text-align: left; }
 .preset.on { border-color: var(--accent); background: var(--accent-dim); }
-.export-preview { display: flex; flex-direction: column; min-height: 0; }
-.summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 12px; border-top: 1px solid var(--line); background: var(--bg-1); }
+.export-preview { display: flex; flex-direction: column; min-height: 0; min-width: 0; padding: 0 0 0 0; }
+.export-preview > .panel { flex: 1; min-height: 0; }
+.export-preview .viewer { background: #050506; }
+.summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 10px 12px; flex-shrink: 0; border-top: 1px solid var(--line); background: var(--bg-1); }
 .summary div { background: var(--bg-2); border-radius: 6px; padding: 8px 10px; }
 .summary b { display: block; font-size: 13px; }
 .summary span { color: var(--text-3); font-size: 11px; }

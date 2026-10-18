@@ -98,6 +98,8 @@ function trackVisible(seq: Sequence, trackId: string): boolean {
 export function buildRenderPlan(
   project: Project, seq: Sequence, settings: ExportSettings,
   resolvePath: (m: MediaItem) => string = (m) => m.path,
+  /** baked .cube file for a graded clip (the worker writes them) */
+  lutFor: (c: Clip) => string | null = () => null,
 ): RenderPlan {
   const fps = settings.fps ?? seq.fps;
   const W = even(settings.width ?? (settings.height ? settings.height * seq.width / seq.height : seq.width));
@@ -161,6 +163,9 @@ export function buildRenderPlan(
         if (c.speed < 0 && m.kind !== 'image') chain.push('reverse');
         chain.push(`setpts=(PTS-STARTPTS)/${r6(m.kind === 'image' ? 1 : speed)}`);
         chain.push(`fps=${r6(fps)}`);
+        const lut = lutFor(c);
+        if (lut) chain.push(`format=rgb24,lut3d=file='${escapeFilterPath(lut)}':interp=tetrahedral`);
+        if (c.color && c.color.vignette < 0) chain.push(`vignette=angle=${r6((Math.PI / 5) * Math.min(1, -c.color.vignette / 60))}:mode=forward`);
         // fit inside the frame (letterbox), like "scale to frame size"
         const tf = c.transform;
         const animated = [tf.scale, tf.posX, tf.posY, tf.opacity, tf.rotation].some((p) => p.keyframes.length);

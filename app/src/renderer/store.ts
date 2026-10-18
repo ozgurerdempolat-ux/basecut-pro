@@ -32,7 +32,7 @@ export interface State {
   zoom: number; // px per frame
   scrollX: number;
   focus: 'project' | 'source' | 'program' | 'timeline';
-  leftTab: 'project' | 'fx' | 'captions';
+  leftTab: 'project' | 'fx' | 'captions' | 'color';
 
   sourceMediaId: Id | null;
   sourceTime: number;

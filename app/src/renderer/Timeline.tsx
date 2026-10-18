@@ -668,7 +668,8 @@ const ClipView = memo(function ClipView({ clip, zoom, height, selected, tool, on
   const width = Math.max(2, clip.duration * zoom);
   const kind = media?.kind === 'image' ? 'image' : clip.stream;
   const hasFx = clip.transform.scale.value !== 100 || clip.transform.opacity.value !== 100 || clip.transform.posX.value !== 0 || clip.transform.posY.value !== 0 || clip.transform.rotation.value !== 0
-    || [clip.transform.scale, clip.transform.opacity, clip.transform.posX, clip.transform.posY, clip.transform.rotation].some((p) => p.keyframes.length);
+    || [clip.transform.scale, clip.transform.opacity, clip.transform.posX, clip.transform.posY, clip.transform.rotation].some((p) => p.keyframes.length)
+    || !!clip.color;
   const cursor = tool === 'razor' ? 'crosshair' : tool === 'slip' || tool === 'slide' ? 'ew-resize' : tool === 'hand' ? 'grab' : tool === 'zoom' ? 'zoom-in' : 'default';
   const edgeCursor = tool === 'roll' ? 'col-resize' : tool === 'ripple' ? 'w-resize' : tool === 'rate' ? 'ew-resize' : 'ew-resize';
   const showEdges = ['select', 'ripple', 'roll', 'rate', 'trackSelect'].includes(tool) && width > 14;

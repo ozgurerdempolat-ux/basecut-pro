@@ -98,6 +98,8 @@ export interface Clip {
   label: LabelColor;
   transform: ClipTransform;
   volumeDb: AnimatableParam;
+  /** colour grade (Color panel); absent = untouched */
+  color?: import('./color').ColorGrade;
 }
 
 export interface Marker {

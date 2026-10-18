@@ -6,6 +6,8 @@
 import { Clip, MediaItem, Sequence, clipEnd, evalParam, sequenceDuration, sourceTimeAt } from '../core/model';
 import { activeSeq, committedSeq, playbackPath, setPlayhead, useStore } from './store';
 import { drawCaptions } from './Captions';
+import { grader } from './grader';
+import { isNeutral } from '../core/color';
 
 type Visual = { el: HTMLVideoElement | HTMLImageElement; path: string; ready: boolean };
 type Sound = { el: HTMLMediaElement; path: string; gain: GainNode | null; src: MediaElementAudioSourceNode | null };
@@ -246,7 +248,8 @@ class Player {
     ctx.translate(x, y);
     const rot = evalParam(t.rotation, local);
     if (rot) ctx.rotate((rot * Math.PI) / 180);
-    ctx.drawImage(el, -w / 2, -h / 2, w, h);
+    const graded = c.color && (!isNeutral(c.color) || c.color.vignette) ? grader.process(el, c.color, Math.ceil(w)) : null;
+    ctx.drawImage(graded ?? el, -w / 2, -h / 2, w, h);
     ctx.restore();
     void m;
   }
@@ -298,6 +301,12 @@ class Player {
       }
     }
     for (const [id, s] of this.sounds) if (!live.has(id)) { s.el.pause(); if (!playing) continue; this.dispose(id); }
+  }
+
+  /** the decoded source element currently showing a clip (for auto colour) */
+  sourceOf(clipId: string): HTMLVideoElement | HTMLImageElement | null {
+    const v = this.visuals.get(clipId);
+    return v && v.ready ? v.el : null;
   }
 
   /** level meter values, 0..1 per channel-ish */

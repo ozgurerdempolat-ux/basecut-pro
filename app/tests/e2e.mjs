@@ -325,6 +325,51 @@ await page.click('.modes button:has-text("Kurgu")').catch(() => {});
   check('Başlık program monitöründe görünüyor', yellow > 300, `${yellow} sarı piksel`);
 }
 
+// ---- colour
+{
+  const target = await page.evaluate(() => {
+    const k = window.__kurgu.store;
+    const s = k.committedSeq();
+    const c = Object.values(s.clips).filter((x) => x.stream === 'video' && x.name === 'kamera-1.mp4').sort((a, b) => a.start - b.start)[0];
+    k.setPlayhead(c.start + 10);
+    k.selectClips([c.id]);
+    k.useStore.setState({ leftTab: 'color' });
+    return c.id;
+  });
+  await page.waitForSelector('text=Temel düzeltme');
+  await page.evaluate((id) => window.__kurgu.store.edit('test grade', (s) => {
+    s.clips[id].color = { ...window.__kurgu.colorcore.neutralGrade(), look: 'siyah-beyaz', exposure: 0.3 };
+  }), target);
+  await page.waitForTimeout(700);
+  await shot(page, '15-renk-paneli');
+  const grey = await page.evaluate(() => {
+    const c = document.querySelector('.viewer canvas');
+    const d = c.getContext('2d').getImageData(0, Math.floor(c.height * 0.1), c.width, Math.floor(c.height * 0.3)).data;
+    let colourful = 0, n = 0;
+    for (let i = 0; i < d.length; i += 16) { n++; if (Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]) > 30) colourful++; }
+    return colourful / n;
+  });
+  check('Renk düzeltme önizlemede GPU ile uygulanıyor (siyah-beyaz)', grey < 0.05, `renkli piksel oranı ${grey.toFixed(3)}`);
+  // export just that clip's range and verify the graded colours
+  const gOut = join(outDir, 'renk-export.mp4');
+  const gJob = await page.evaluate(async ([out, id]) => {
+    const k = window.__kurgu.store;
+    const st = k.useStore.getState();
+    const s = k.committedSeq(st);
+    const c = s.clips[id];
+    const p = { ...st.project, sequences: { ...st.project.sequences, [s.id]: { ...s, inPoint: c.start, outPoint: c.start + 20 } } };
+    return window.kurgu.exportSequence({ project: p, sequenceId: s.id, settings: { output: out, container: 'mp4', videoCodec: 'h264', audioCodec: 'aac', rateControl: 'quality', quality: 20, videoBitrateKbps: 8000, audioBitrateKbps: 128, range: 'inout', hardware: 'none', preset: 'ultrafast' }, useProxies: false });
+  }, [gOut, target]);
+  await page.waitForFunction((id) => window.__kurgu.store.useStore.getState().jobs[id]?.done, gJob.jobId, { timeout: 300000 });
+  if (existsSync(gOut)) {
+    const raw = execFileSync('ffmpeg', ['-v', 'error', '-ss', '0.2', '-i', gOut, '-frames:v', '1', '-vf', 'crop=iw:ih*0.3:0:ih*0.1,scale=160:-2', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-']);
+    let colourful = 0, n = 0;
+    for (let i = 0; i < raw.length; i += 3) { n++; if (Math.max(raw[i], raw[i + 1], raw[i + 2]) - Math.min(raw[i], raw[i + 1], raw[i + 2]) > 30) colourful++; }
+    check('Renk düzeltme export\'a aynen yansıdı', colourful / n < 0.05, `renkli piksel oranı ${(colourful / n).toFixed(3)}`);
+  } else check('Renk düzeltme export\'a aynen yansıdı', false, 'dosya yok');
+  await page.evaluate((id) => window.__kurgu.store.edit('undo grade', (s) => { delete s.clips[id].color; }), target);
+}
+
 // ---- export through the real worker
 await page.click('.modes button:has-text("Dışa Aktar")');
 await page.waitForTimeout(500);

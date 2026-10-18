@@ -7,6 +7,8 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, statSync, writeFileSync, readFileSync } from 'node:fs';
 import { basename, extname, join } from 'node:path';
 import { buildRenderPlan } from '../core/render-graph';
+import { bakeLut, gradeKey, isNeutral, parseCube, toCube } from '../core/color';
+import type { Clip } from '../core/model';
 import type { ExportRequest, MediaAssets, ProbeResult, WorkerRequest, WorkerResponse } from '../shared/ipc';
 import { FFMPEG, FFPROBE } from './ffbin';
 
@@ -157,10 +159,25 @@ async function proxy(path: string, jobId: string): Promise<string> {
 
 // ------------------------------------------------------------------ export
 
+/** bake each clip's grade to a .cube once (cached by content) */
+function lutResolver(): (c: Clip) => string | null {
+  return (c) => {
+    if (!c.color || isNeutral(c.color)) return null;
+    const userKey = c.color.lutPath ? `|${c.color.lutPath}` : '';
+    const file = join(CACHE, `lut-${gradeKey(c.color)}${userKey ? createHash('sha1').update(userKey).digest('hex').slice(0, 6) : ''}.cube`);
+    if (!existsSync(file)) {
+      let user = null;
+      if (c.color.lutPath && existsSync(c.color.lutPath)) user = parseCube(readFileSync(c.color.lutPath, 'utf8'));
+      writeFileSync(file, toCube(bakeLut(c.color, 33, user)));
+    }
+    return file;
+  };
+}
+
 async function exportSeq(req: ExportRequest, jobId: string): Promise<string> {
   const seq = req.project.sequences[req.sequenceId];
   if (!seq) throw new Error('Sekans bulunamadı');
-  const plan = buildRenderPlan(req.project, seq, req.settings);
+  const plan = buildRenderPlan(req.project, seq, req.settings, (m) => m.path, lutResolver());
   await run(FFMPEG, plan.args, {
     jobId,
     onStdout: (s) => {

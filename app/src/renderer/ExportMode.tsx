@@ -198,7 +198,7 @@ export function ExportMode() {
             ))}
           </div>
         </div>
-        <button className="btn primary" style={{ justifyContent: 'center', padding: 10, fontSize: 13 }} disabled={blocking} onClick={run}>{I.exportI} Dışa aktar</button>
+        <button className="btn primary big" disabled={blocking} onClick={run}>{I.exportI} Dışa aktar</button>
         {active.map((j) => (
           <div key={j.jobId} className="preflight"><div className={`item ${j.error ? 'err' : j.done ? 'ok' : 'warn'}`} style={{ flexDirection: 'column', alignItems: 'stretch' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{j.label}</span><b>{Math.round(j.progress * 100)}%</b></div>

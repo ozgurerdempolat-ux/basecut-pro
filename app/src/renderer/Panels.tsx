@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { AnimatableParam, Clip, LabelColor, MediaItem, evalParam, framesToTimecode, makeSequence } from '../core/model';
 import { I } from './icons';
 import { CaptionsPanel } from './Captions';
+import { ColorPanel } from './ColorPanel';
 import { createTitle, updateTitle } from './titles';
 import { TITLE_FONTS, TITLE_PRESETS, TitleData } from '../core/title';
 import { Tool, activeSeq, committedSeq, edit, editProject, importPaths, setPlayhead, useStore } from './store';
@@ -27,7 +28,7 @@ export function ProjectPanel() {
   const [thumb, setThumb] = useState(130);
   const [over, setOver] = useState(false);
   const tab = useStore((s) => s.leftTab);
-  const setTab = (t: 'project' | 'fx' | 'captions') => useStore.setState({ leftTab: t });
+  const setTab = (t: 'project' | 'fx' | 'captions' | 'color') => useStore.setState({ leftTab: t });
   const items = useMemo(() => Object.values(media).filter((m) => m.name.toLowerCase().includes(q.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name)), [media, q]);
 
   const open = async () => {
@@ -56,10 +57,11 @@ export function ProjectPanel() {
       <div className="panel-tabs">
         <div className={`tab ${tab === 'project' ? 'on' : ''}`} onClick={() => setTab('project')}>Proje</div>
         <div className={`tab ${tab === 'fx' ? 'on' : ''}`} onClick={() => setTab('fx')}>Efekt Kontrolleri</div>
+        <div className={`tab ${tab === 'color' ? 'on' : ''}`} onClick={() => setTab('color')}>Renk</div>
         <div className={`tab ${tab === 'captions' ? 'on' : ''}`} onClick={() => setTab('captions')}>Altyazı</div>
         <div className="grow" />
       </div>
-      {tab === 'captions' ? <CaptionsPanel /> : tab === 'fx' ? <EffectControls /> : (
+      {tab === 'color' ? <ColorPanel /> : tab === 'captions' ? <CaptionsPanel /> : tab === 'fx' ? <EffectControls /> : (
         <>
           <div className="proj-toolbar">
             <input className="search" placeholder="Ara…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
