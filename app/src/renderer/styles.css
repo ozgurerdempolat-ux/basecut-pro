@@ -279,3 +279,10 @@ select.mini { background: var(--bg-2); border: 1px solid var(--line); border-rad
   font-size: 9px; font-weight: 800; color: #04121f; display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap; }
 .trans-block.sel { outline: 2px solid var(--sel); }
 .clip.drop-fx { outline: 2px dashed var(--sel); outline-offset: -2px; }
+.fx-badge.audio { background: rgba(120, 230, 160, 0.18); color: #7fe3a5; }
+/* head/tail transitions fade from/to nothing: a one-sided ramp instead of the crossed block */
+.trans-block.tail { background: linear-gradient(90deg, rgba(108,196,255,0.25), rgba(0,0,0,0.85)) !important; }
+.trans-block.head { background: linear-gradient(90deg, rgba(0,0,0,0.85), rgba(108,196,255,0.25)) !important; }
+.lane.kind-audio .trans-block { border-color: rgba(127,227,165,0.8); }
+.fx-group.sel { box-shadow: inset 2px 0 0 var(--sel); }
+.fx-sep { padding: 8px 10px 4px; margin-top: 6px; border-top: 1px solid var(--line); color: #7fe3a5; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }

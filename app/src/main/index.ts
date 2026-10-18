@@ -231,7 +231,8 @@ function buildMenu() {
     { label: 'Sekans', submenu: [
       { label: 'Kesim Ekle', accelerator: 'CmdOrCtrl+K', click: cmd('add-edit') },
       { label: 'Tüm İzlere Kesim Ekle', accelerator: 'CmdOrCtrl+Shift+K', click: cmd('add-edit-all') },
-      { label: 'Varsayılan Geçişi Uygula (çapraz geçiş)', accelerator: 'CmdOrCtrl+D', click: cmd('default-transition') },
+      { label: 'Varsayılan Video Geçişini Uygula (çapraz geçiş)', accelerator: 'CmdOrCtrl+D', click: cmd('default-transition') },
+      { label: 'Varsayılan Ses Geçişini Uygula (sabit güç)', accelerator: 'CmdOrCtrl+Shift+D', click: cmd('default-audio-transition') },
       { label: 'Tüm Boşlukları Kapat', click: cmd('close-gaps') },
       { label: 'Video İzi Ekle', click: cmd('add-video-track') },
       { label: 'Ses İzi Ekle', click: cmd('add-audio-track') },

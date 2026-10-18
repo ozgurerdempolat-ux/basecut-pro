@@ -3,7 +3,7 @@ import { AnimatableParam, Clip, LabelColor, MediaItem, evalParam, framesToTimeco
 import { I } from './icons';
 import { CaptionsPanel } from './Captions';
 import { ColorPanel } from './ColorPanel';
-import { EffectStack, EffectsLibrary, TransitionControls } from './Effects';
+import { AudioEffectStack, EffectStack, EffectsLibrary, TransitionControls } from './Effects';
 import { createTitle, updateTitle } from './titles';
 import { TITLE_FONTS, TITLE_PRESETS, TitleData } from '../core/title';
 import { Tool, activeSeq, committedSeq, edit, editProject, importPaths, setPlayhead, useStore } from './store';
@@ -170,6 +170,8 @@ export function EffectControls() {
   const seq = useStore((s) => activeSeq(s));
   const selection = useStore((s) => s.selection);
   const clip = selection.map((id) => seq.clips[id]).find((c) => c && c.stream === 'video') ?? selection.map((id) => seq.clips[id]).find(Boolean);
+  // the audio half of a linked selection is shown below the video controls (as in Premiere)
+  const aclip = clip?.stream === 'audio' ? clip : selection.map((id) => seq.clips[id]).find((c) => c && c.stream === 'audio');
   if (!clip) return <div className="empty"><div className="big">Klip seçilmedi</div><div>Timeline'da bir klip seçin: konum, ölçek, döndürme, opaklık ve ses seviyesini buradan ayarlayın, anahtar kare ekleyin.</div></div>;
   const local = Math.max(0, Math.min(clip.duration - 1, seq.playhead - clip.start));
   const media = useStore.getState().project.media[clip.mediaId];
@@ -197,10 +199,18 @@ export function EffectControls() {
       {clip.stream === 'video' && !(clip.effects ?? []).length && (
         <div style={{ padding: '6px 10px', color: 'var(--text-3)' }}>Efekt eklemek için <a href="#" onClick={(e) => { e.preventDefault(); useStore.setState({ leftTab: 'effects' }); }} style={{ color: 'var(--accent)' }}>Efektler</a> sekmesinden klibe sürükleyin.</div>
       )}
-      {clip.stream === 'audio' && (
-        <Group title="Ses Seviyesi">
-          <ParamRow clip={clip} k="volume" label="Seviye" local={local} step={0.1} unit="dB" min={-60} max={24} />
-        </Group>
+      {aclip && (
+        <>
+          {aclip !== clip && <div className="fx-sep">Ses · {aclip.name}</div>}
+          {aclip !== clip && <TransitionControls clip={aclip} seq={seq} />}
+          <Group title="Ses Seviyesi">
+            <ParamRow clip={aclip} k="volume" label="Seviye" local={Math.max(0, Math.min(aclip.duration - 1, seq.playhead - aclip.start))} step={0.1} unit="dB" min={-60} max={24} />
+          </Group>
+          <AudioEffectStack clip={aclip} />
+          {!(aclip.audioFx ?? []).length && (
+            <div style={{ padding: '6px 10px', color: 'var(--text-3)' }}>Gürültü azaltma, konuşmayı netleştirme, EQ… <a href="#" onClick={(e) => { e.preventDefault(); useStore.setState({ leftTab: 'effects' }); }} style={{ color: 'var(--accent)' }}>Efektler › Ses efektleri</a>'nden ses klibine sürükleyin.</div>
+          )}
+        </>
       )}
       <div style={{ padding: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <button className="btn small" onClick={() => edit('Klibi kareye sığdır', (s) => { const c = s.clips[clip.id]; c.transform.scale.value = 100; c.transform.scale.keyframes = []; })}>Kareye sığdır</button>

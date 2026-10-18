@@ -390,7 +390,8 @@ await page.click('.modes button:has-text("Kurgu")').catch(() => {});
     const lb = await lanes[laneIndex].boundingBox();
     const zoom = await page.evaluate(() => window.__kurgu.store.useStore.getState().zoom);
     const sl = await page.evaluate(() => document.querySelector('.tl-scroll').scrollLeft);
-    const x = lb.x + frame * zoom - sl, y = lb.y + lb.height / 2;
+    const x = lb.x + frame * zoom, y = lb.y + lb.height / 2; // the lane box already moves with the scroll
+    void sl;
     const dt = await page.evaluateHandle(() => new DataTransfer());
     await item.dispatchEvent('dragstart', { dataTransfer: dt });
     const target = await page.$('.tl-scroll');
@@ -436,6 +437,50 @@ await page.click('.modes button:has-text("Kurgu")').catch(() => {});
   await page.keyboard.press('Control+d');
   const after = await page.evaluate(() => Object.values(window.__kurgu.store.committedSeq().clips).filter((c) => c.transIn).length);
   check('Ctrl+D varsayılan geçiş ekledi', after === before + 1, `${before} → ${after}`);
+  // closing transition: drop "Siyaha geçiş" on the END of the last V1 clip
+  const tail = await page.evaluate(() => {
+    const s = window.__kurgu.store.committedSeq();
+    const v1 = s.tracks.find((t) => t.name === 'V1').id;
+    const cs = Object.values(s.clips).filter((c) => c.trackId === v1).sort((a, b) => a.start - b.start);
+    const last = cs[cs.length - 1];
+    return { id: last.id, end: last.start + last.duration };
+  });
+  await page.evaluate(() => window.__kurgu.store.useStore.setState({ leftTab: 'effects' }));
+  await page.waitForSelector('.fx-item');
+  await page.evaluate((f) => { const z = window.__kurgu.store.useStore.getState().zoom; document.querySelector('.tl-scroll').scrollLeft = Math.max(0, f * z - 300); }, tail.end);
+  await dragFx('.fx-item:has-text("Siyaha geçiş")', tail.end - 3, v1Index);
+  await page.waitForTimeout(200);
+  const tout = await page.evaluate((id) => window.__kurgu.store.committedSeq().clips[id].transOut, tail.id);
+  const dbg = await page.evaluate(() => { const s = window.__kurgu.store.committedSeq(); return JSON.stringify({ toasts: window.__kurgu.store.useStore.getState().toasts?.map((t) => t.text), clips: Object.values(s.clips).filter((c) => c.transIn || c.transOut).map((c) => [c.name, c.start, c.duration, c.transIn?.type, c.transOut?.type]) }); });
+  check('Klibin SONUNA kapanış geçişi bırakılabiliyor', tout && tout.type === 'black', JSON.stringify(tout) + ' ' + dbg + ' ' + JSON.stringify(tail));
+  const tailBlock = await page.$$eval('.trans-block.tail', (b) => b.length);
+  check('Kapanış geçişi timeline\'da görünüyor', tailBlock >= 1, `${tailBlock}`);
+  const lum = async (f) => {
+    await page.evaluate((x) => window.__kurgu.store.setPlayhead(x), f);
+    await page.waitForTimeout(900);
+    return page.evaluate(() => {
+      const c = document.querySelector('.viewer canvas');
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      let t = 0, n = 0;
+      for (let i = 0; i < d.length; i += 40) { t += d[i] + d[i + 1] + d[i + 2]; n++; }
+      return t / n / 3;
+    });
+  };
+  const lBefore = await lum(tail.end - 40), lEnd = await lum(tail.end - 2);
+  check('Kapanış geçişi önizlemede kararıyor', lEnd < lBefore * 0.5 || lEnd < 20, `${lBefore.toFixed(1)} → ${lEnd.toFixed(1)}`);
+  await page.evaluate((id) => window.__kurgu.store.useStore.setState({ selection: [id], leftTab: 'fx' }), tail.id);
+  await page.waitForTimeout(300);
+  const hasTailCtl = await page.$$eval('.fx-group .gh', (g) => g.some((x) => x.textContent.includes('Kapanış geçişi')));
+  check('Efekt Kontrolleri kapanış geçişini gösteriyor', hasTailCtl);
+  await shot(page, '17b-kapanis-gecisi');
+  // Ctrl+Shift+D: audio fade/crossfade at the playhead
+  const aBefore = await page.evaluate(() => Object.values(window.__kurgu.store.committedSeq().clips).filter((c) => c.stream === 'audio' && (c.transIn || c.transOut)).length);
+  await page.evaluate(() => window.__kurgu.store.useStore.setState({ selection: [] }));
+  await page.click('.tl-scroll', { position: { x: 5, y: 120 } });
+  await page.evaluate(() => window.__kurgu.store.useStore.setState({ selection: [] }));
+  await page.keyboard.press('Control+Shift+d');
+  const aAfter = await page.evaluate(() => Object.values(window.__kurgu.store.committedSeq().clips).filter((c) => c.stream === 'audio' && (c.transIn || c.transOut)).length);
+  check('Ctrl+Shift+D ses geçişi ekledi', aAfter === aBefore + 1, `${aBefore} → ${aAfter}`);
   // a few more effects for the export test
   await page.evaluate((id) => {
     const k = window.__kurgu.store;

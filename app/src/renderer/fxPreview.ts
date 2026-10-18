@@ -219,12 +219,32 @@ export function drawBlurFill(ctx: CanvasRenderingContext2D, src: CanvasImageSour
 const ease = (x: number) => x;
 
 /** draw the transition from A to B at progress p (0 = all A, 1 = all B) */
-export function drawTransition(ctx: CanvasRenderingContext2D, A: HTMLCanvasElement, B: HTMLCanvasElement, type: string, pIn: number) {
+// Both sides may be transparent (a transition from/to nothing at a clip's head or
+// tail), so everything is composited on its own canvas with real mixing — never
+// "B on top of A" — and only the result is drawn over the lower tracks.
+export function drawTransition(out: CanvasRenderingContext2D, A: HTMLCanvasElement, B: HTMLCanvasElement, type: string, pIn: number) {
   const W = A.width, H = A.height;
   const p = Math.max(0, Math.min(1, ease(pIn)));
   const x = TRANSITION_BY_ID[type]?.xfade ?? 'fade';
-  const both = (a: number, b: number) => { ctx.globalAlpha = a; ctx.drawImage(A, 0, 0); ctx.globalAlpha = b; ctx.drawImage(B, 0, 0); ctx.globalAlpha = 1; };
-  const clipB = (path: () => void) => { ctx.drawImage(A, 0, 0); ctx.save(); ctx.beginPath(); path(); ctx.clip(); ctx.drawImage(B, 0, 0); ctx.restore(); };
+  const T = tmpCanvas(W, H);
+  const ctx = ctx2(T);
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.filter = 'none';
+  ctx.clearRect(0, 0, W, H);
+  /** A·(1−p) + B·p, alpha included (premultiplied add) */
+  const mix = (c: CanvasRenderingContext2D, a: CanvasImageSource, b: CanvasImageSource, k: number, dw = W, dh = H) => {
+    c.globalAlpha = 1 - k; c.drawImage(a, 0, 0, dw, dh);
+    c.globalCompositeOperation = 'lighter'; c.globalAlpha = k; c.drawImage(b, 0, 0, dw, dh);
+    c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+  };
+  const both = (_a: number, k: number) => mix(ctx, A, B, k);
+  const clipB = (path: () => void) => { ctx.drawImage(A, 0, 0); ctx.save(); ctx.beginPath(); path(); ctx.clip(); ctx.clearRect(0, 0, W, H); ctx.drawImage(B, 0, 0); ctx.restore(); };
+  /** A where the mask is empty, B where it is full (t = B already cut by the mask) */
+  const masked = (t: HTMLCanvasElement, drawMask: () => void) => {
+    ctx.drawImage(A, 0, 0);
+    ctx.globalCompositeOperation = 'destination-out'; drawMask();
+    ctx.globalCompositeOperation = 'lighter'; ctx.drawImage(t, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+  };
   switch (x) {
     case 'fade': case 'fadefast': case 'fadeslow': case 'distance': both(1, p); break;
     case 'fadeblack': case 'fadewhite': {
@@ -252,8 +272,8 @@ export function drawTransition(ctx: CanvasRenderingContext2D, A: HTMLCanvasEleme
       const sw = Math.max(2, Math.round(W / blk)), sh = Math.max(2, Math.round(H / blk));
       const t = tmpCanvas(sw, sh);
       const tc = ctx2(t);
-      tc.globalAlpha = 1; tc.drawImage(A, 0, 0, sw, sh);
-      tc.globalAlpha = p; tc.drawImage(B, 0, 0, sw, sh); tc.globalAlpha = 1;
+      tc.clearRect(0, 0, sw, sh);
+      mix(tc, A, B, p, sw, sh);
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(t, 0, 0, W, H);
       ctx.imageSmoothingEnabled = true;
@@ -281,8 +301,7 @@ export function drawTransition(ctx: CanvasRenderingContext2D, A: HTMLCanvasEleme
       tc.globalCompositeOperation = 'source-in';
       tc.drawImage(B, 0, 0);
       tc.globalCompositeOperation = 'source-over';
-      ctx.drawImage(A, 0, 0);
-      ctx.drawImage(t, 0, 0);
+      masked(t, () => { ctx.imageSmoothingEnabled = false; ctx.drawImage(mask, 0, 0, W, H); ctx.imageSmoothingEnabled = true; });
       release(t); release(mask);
       break;
     }
@@ -294,15 +313,18 @@ export function drawTransition(ctx: CanvasRenderingContext2D, A: HTMLCanvasEleme
       const t = tmpCanvas(W, H);
       const tc = ctx2(t);
       tc.clearRect(0, 0, W, H);
-      const g = x === 'smoothleft' ? tc.createLinearGradient(W, 0, 0, 0) : tc.createLinearGradient(0, 0, W, 0);
       const e = p * 1.4 - 0.2;
-      g.addColorStop(Math.max(0, Math.min(1, e - 0.2)), 'rgba(0,0,0,1)');
-      g.addColorStop(Math.max(0, Math.min(1, e + 0.2)), 'rgba(0,0,0,0)');
-      tc.fillStyle = g; tc.fillRect(0, 0, W, H);
+      const grad = (c: CanvasRenderingContext2D) => {
+        const g = x === 'smoothleft' ? c.createLinearGradient(W, 0, 0, 0) : c.createLinearGradient(0, 0, W, 0);
+        g.addColorStop(Math.max(0, Math.min(1, e - 0.2)), 'rgba(0,0,0,1)');
+        g.addColorStop(Math.max(0, Math.min(1, e + 0.2)), 'rgba(0,0,0,0)');
+        return g;
+      };
+      tc.fillStyle = grad(tc); tc.fillRect(0, 0, W, H);
       tc.globalCompositeOperation = 'source-in';
       tc.drawImage(B, 0, 0);
       tc.globalCompositeOperation = 'source-over';
-      ctx.drawImage(A, 0, 0); ctx.drawImage(t, 0, 0);
+      masked(t, () => { ctx.fillStyle = grad(ctx); ctx.fillRect(0, 0, W, H); });
       release(t);
       break;
     }
@@ -310,7 +332,7 @@ export function drawTransition(ctx: CanvasRenderingContext2D, A: HTMLCanvasEleme
     case 'diagbr': clipB(() => { const d = (W + H) * p; ctx.moveTo(W, H); ctx.lineTo(W - Math.min(W, d), H); ctx.lineTo(W, H - Math.min(H, d)); ctx.closePath(); if (d > Math.min(W, H)) { ctx.rect(Math.max(0, W - d), Math.max(0, H - d), W, H); } }); break;
     case 'radial': clipB(() => { ctx.moveTo(W / 2, H / 2); ctx.arc(W / 2, H / 2, Math.hypot(W, H), -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2); ctx.closePath(); }); break;
     case 'circleopen': clipB(() => ctx.arc(W / 2, H / 2, (Math.hypot(W, H) / 2) * p, 0, Math.PI * 2)); break;
-    case 'circleclose': { ctx.drawImage(B, 0, 0); ctx.save(); ctx.beginPath(); ctx.arc(W / 2, H / 2, (Math.hypot(W, H) / 2) * (1 - p), 0, Math.PI * 2); ctx.clip(); ctx.drawImage(A, 0, 0); ctx.restore(); break; }
+    case 'circleclose': { ctx.drawImage(B, 0, 0); ctx.save(); ctx.beginPath(); ctx.arc(W / 2, H / 2, (Math.hypot(W, H) / 2) * (1 - p), 0, Math.PI * 2); ctx.clip(); ctx.clearRect(0, 0, W, H); ctx.drawImage(A, 0, 0); ctx.restore(); break; }
     case 'horzopen': clipB(() => ctx.rect(0, (H / 2) * (1 - p), W, H * p)); break;
     case 'vertopen': clipB(() => ctx.rect((W / 2) * (1 - p), 0, W * p, H)); break;
     case 'rectcrop': clipB(() => ctx.rect((W / 2) * (1 - p), (H / 2) * (1 - p), W * p, H * p)); break;
@@ -319,7 +341,7 @@ export function drawTransition(ctx: CanvasRenderingContext2D, A: HTMLCanvasEleme
     case 'slideright': ctx.drawImage(A, W * p, 0); ctx.drawImage(B, -W * (1 - p), 0); break;
     case 'slideup': ctx.drawImage(A, 0, -H * p); ctx.drawImage(B, 0, H * (1 - p)); break;
     case 'slidedown': ctx.drawImage(A, 0, H * p); ctx.drawImage(B, 0, -H * (1 - p)); break;
-    case 'coverleft': ctx.drawImage(A, 0, 0); ctx.drawImage(B, W * (1 - p), 0); break;
+    case 'coverleft': ctx.drawImage(A, 0, 0); ctx.clearRect(W * (1 - p), 0, W * p, H); ctx.drawImage(B, W * (1 - p), 0); break;
     case 'revealright': ctx.drawImage(B, 0, 0); ctx.drawImage(A, W * p, 0); break;
     case 'squeezeh': {
       if (p < 0.5) { const k = 1 - p * 2; ctx.drawImage(A, (W * (1 - k)) / 2, 0, W * k, H); }
@@ -328,10 +350,14 @@ export function drawTransition(ctx: CanvasRenderingContext2D, A: HTMLCanvasEleme
     }
     case 'zoomin': {
       const z = 1 + p * 0.8;
-      ctx.drawImage(A, (W - W * z) / 2, (H - H * z) / 2, W * z, H * z);
-      ctx.globalAlpha = p; ctx.drawImage(B, 0, 0); ctx.globalAlpha = 1;
+      ctx.globalAlpha = 1 - p; ctx.drawImage(A, (W - W * z) / 2, (H - H * z) / 2, W * z, H * z);
+      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = p; ctx.drawImage(B, 0, 0);
+      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
       break;
     }
     default: both(1, p);
   }
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.filter = 'none';
+  out.drawImage(T, 0, 0);
+  release(T);
 }

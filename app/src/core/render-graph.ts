@@ -4,6 +4,7 @@
 
 import { AnimatableParam, Clip, MediaItem, Project, Sequence, clipEnd, clipSrcSpan, sequenceDuration } from './model';
 import { EFFECT_BY_ID, TRANSITION_BY_ID, motionOf, transitionWindows } from './fx';
+import { AUDIO_TRANSITIONS, audioFxChain } from './audiofx';
 
 export type VideoCodec = 'h264' | 'hevc' | 'prores' | 'vp9' | 'gif' | 'none';
 export type AudioCodec = 'aac' | 'mp3' | 'pcm' | 'opus' | 'none';
@@ -279,35 +280,79 @@ export function buildRenderPlan(
     filters.push(`[${vout}]format=${pixFmt}[vout]`);
   }
 
-  // ---- audio: every audible clip delayed into place, then mixed
+  // ---- audio: every audible clip delayed into place (with crossfades and effects), then mixed
   if (wantAudio) {
     const labels: string[] = [];
+    const F = seq.fps;
     for (const trackId of trackOrder('audio')) {
       if (settings.onlyAudioTracks ? !settings.onlyAudioTracks.includes(trackId) : !trackAudible(seq, trackId)) continue;
       const track = seq.tracks.find((t) => t.id === trackId)!;
-      const clips = Object.values(seq.clips).filter((c) => c.trackId === trackId && c.stream === 'audio' && c.enabled);
+      const clips = Object.values(seq.clips).filter((c) => c.trackId === trackId && c.stream === 'audio' && c.enabled).sort((x, y) => x.start - y.start);
+      // crossfades: A keeps playing past the cut and fades out while B fades in
+      const segs = new Map<string, { a: number; b: number; fin?: { at: number; d: number; curve: string }; fout?: { at: number; d: number; curve: string } }>();
+      for (const c of clips) segs.set(c.id, { a: c.start, b: clipEnd(c) });
+      const curveOf = (t: string) => AUDIO_TRANSITIONS.find((x) => x.id === t)?.curve ?? 'qsin';
+      // tails with nothing after them: fade out to silence
+      for (const A of clips) {
+        const tr = A.transOut;
+        if (!tr || tr.duration < 2 || clips.some((x) => x.start === clipEnd(A) && x.id !== A.id)) continue;
+        const d = Math.min(tr.duration, A.duration);
+        segs.get(A.id)!.fout = { at: clipEnd(A) - d, d, curve: curveOf(tr.type) };
+      }
+      for (const B of clips) {
+        const A = clips.find((x) => clipEnd(x) === B.start && x.id !== B.id);
+        const tr = B.transIn ?? A?.transOut;
+        if (!tr || tr.duration < 2) continue;
+        const curve = curveOf(tr.type);
+        const sb = segs.get(B.id)!;
+        if (A) {
+          const d = Math.min(tr.duration, A.duration + B.duration - 2);
+          const half = Math.floor(d / 2);
+          const wa = B.start - half, wb = wa + d;
+          sb.a = wa; sb.fin = { at: wa, d, curve };
+          const sa = segs.get(A.id)!;
+          sa.b = wb; sa.fout = { at: wa, d, curve };
+        } else {
+          const d = Math.min(tr.duration, B.duration);
+          sb.fin = { at: B.start, d, curve };
+        }
+      }
       for (const c of clips) {
-        const part = visiblePart(c);
         const m = project.media[c.mediaId];
-        if (!part || !m || !m.hasAudio) continue;
-        const headFrames = part.a - c.start;
-        const lenSec = (part.b - part.a) / seq.fps;
-        const speed = Math.abs(c.speed);
-        const srcStart = c.speed >= 0
-          ? c.srcIn + (headFrames / seq.fps) * speed
-          : c.srcIn + ((clipEnd(c) - part.b) / seq.fps) * speed;
-        args.push('-ss', r6(Math.max(0, srcStart)), '-t', r6(lenSec * speed + 0.05), '-i', resolvePath(m));
+        const sg = segs.get(c.id)!;
+        const a = Math.max(sg.a, from), b = Math.min(sg.b, to);
+        if (b <= a || !m || !m.hasAudio) continue;
+        const speed = Math.abs(c.speed) || 1;
+        const lenSec = (b - a) / F;
+        // source window (may reach outside the clip for crossfades); clamp to the media
+        const srcAtF = (f: number) => (c.speed >= 0 ? c.srcIn + ((f - c.start) / F) * speed : c.srcIn + ((clipEnd(c) - f) / F) * speed);
+        const s0 = Math.min(srcAtF(a), srcAtF(b));
+        const lo = Math.max(0, s0);
+        const lead = (lo - s0) / speed; // seconds of silence before the media starts
+        const srcLen = Math.max(0.01, lenSec * speed - (lo - s0));
+        args.push('-ss', r6(lo), '-t', r6(srcLen + 0.05), '-i', resolvePath(m));
         const i = inputIndex++;
-        const delayMs = Math.round(((part.a - from) / seq.fps) * 1000);
-        const chain = [`atrim=duration=${r6(lenSec * speed)}`, 'asetpts=PTS-STARTPTS'];
+        const delayMs = Math.max(0, Math.round(((a - from) / F + lead) * 1000));
+        const chain = [`atrim=duration=${r6(srcLen)}`, 'asetpts=PTS-STARTPTS'];
         if (c.speed < 0) chain.push('areverse');
         const tempo = atempoChain(speed);
         if (tempo) chain.push(tempo);
         chain.push(`aresample=${seq.sampleRate}`, 'aformat=channel_layouts=stereo');
+        chain.push(...audioFxChain(c.audioFx, seq.sampleRate));
+        const headFrames = a - c.start;
         const gain = c.volumeDb.value + track.volumeDb;
         if (c.volumeDb.keyframes.length) {
-          chain.push(`volume='pow(10,(${paramExpr(c.volumeDb, -headFrames / seq.fps, seq.fps)}+${r6(track.volumeDb)})/20)':eval=frame`);
+          chain.push(`volume='pow(10,(${paramExpr(c.volumeDb, -(headFrames / F) + lead, F)}+${r6(track.volumeDb)})/20)':eval=frame`);
         } else if (Math.abs(gain) > 1e-6) chain.push(`volume=${r6(gain)}dB`);
+        // fades in segment-local time (t=0 at frame a, after the lead)
+        const local = (f: number) => (f - a) / F - lead;
+        if (sg.fin) chain.push(`afade=t=in:st=${r6(Math.max(0, local(sg.fin.at)))}:d=${r6(sg.fin.d / F)}:curve=${sg.fin.curve}`);
+        if (sg.fout) chain.push(`afade=t=out:st=${r6(Math.max(0, local(sg.fout.at)))}:d=${r6(sg.fout.d / F)}:curve=${sg.fout.curve}`);
+        const pan = track.pan ?? 0;
+        if (pan) {
+          const th = ((pan / 100 + 1) * Math.PI) / 4;
+          chain.push(`pan=stereo|c0=${r6(Math.cos(th) * Math.SQRT2)}*c0|c1=${r6(Math.sin(th) * Math.SQRT2)}*c1`);
+        }
         chain.push(`adelay=${delayMs}|${delayMs}`);
         filters.push(`[${i}:a]${chain.join(',')}[a${labels.length}]`);
         labels.push(`a${labels.length}`);

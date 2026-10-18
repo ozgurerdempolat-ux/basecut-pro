@@ -12,7 +12,7 @@ import {
   setPlayhead, setSeqField, toast, undo, useStore,
 } from './store';
 import { Timeline, fitZoom } from './Timeline';
-import { applyDefaultTransition } from './Effects';
+import { applyDefaultAudioTransition, applyDefaultTransition, removeTransition } from './Effects';
 
 const TOOL_KEYS: Record<string, Tool> = { v: 'select', a: 'trackSelect', b: 'ripple', n: 'roll', r: 'rate', c: 'razor', y: 'slip', u: 'slide', h: 'hand', z: 'zoom', t: 'type' };
 
@@ -205,6 +205,7 @@ export function runCommand(c: string) {
     case 'add-edit-all': edit('Tüm izlerde kes', (s) => { ops.razor(s, s.playhead); }); return;
     case 'close-gaps': edit('Boşlukları kapat', (s) => ops.closeAllGaps(s)); return;
     case 'default-transition': applyDefaultTransition(); return;
+    case 'default-audio-transition': applyDefaultAudioTransition(); return;
     case 'add-video-track': edit('Video izi ekle', (s) => { ops.addTrack(s, 'video'); }); return;
     case 'add-audio-track': edit('Ses izi ekle', (s) => { ops.addTrack(s, 'audio'); }); return;
   }
@@ -292,7 +293,7 @@ function handleKey(e: KeyboardEvent): boolean {
       [k === 'c', 'copy'], [k === 'x' && !shift, 'cut'], [k === 'v' && !shift, 'paste'], [k === 'v' && shift, 'paste-insert'],
       [k === 'a' && !shift, 'select-all'], [k === 'a' && shift, 'deselect'],
       [k === 'k' && !shift, 'add-edit'], [k === 'k' && shift, 'add-edit-all'],
-      [k === 'r', 'speed'], [k === 'l', 'toggle-link'], [k === 'k' && alt, 'shortcuts'], [k === 'd' && !shift, 'default-transition'],
+      [k === 'r', 'speed'], [k === 'l', 'toggle-link'], [k === 'k' && alt, 'shortcuts'], [k === 'd' && !shift, 'default-transition'], [k === 'd' && shift, 'default-audio-transition'],
     ];
     const hit = map.find(([m]) => m);
     if (hit) { runCommand(hit[1]); return true; }
@@ -344,8 +345,7 @@ function handleKey(e: KeyboardEvent): boolean {
   // editing
   if (k === 'delete' || k === 'backspace') {
     if (st.selTransition) {
-      const id = st.selTransition;
-      edit('Geçişi kaldır', (s) => { if (s.clips[id]) delete s.clips[id].transIn; });
+      removeTransition(st.selTransition);
       useStore.setState({ selTransition: null });
       return true;
     }

@@ -2,8 +2,9 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { Clip, Id, Sequence, Track, clipEnd, framesToTimecode, sequenceDuration, timecodeToFrames } from '../core/model';
 import * as ops from '../core/ops';
 import { I } from './icons';
-import { FX_MIME, FxDrag, addEffect, addTransition, transitionTarget } from './Effects';
+import { FX_MIME, FxDrag, addAudioEffect, addEffect, addTransition, transitionTarget } from './Effects';
 import { TRANSITION_BY_ID, transitionWindows } from '../core/fx';
+import { AUDIO_TRANSITIONS } from '../core/audiofx';
 import { player } from './player';
 import {
   activeSeq, cancelPreview, commitPreview, committedSeq, edit, previewEdit, selectClips, setPlayhead, toast, useStore,
@@ -382,15 +383,22 @@ export function Timeline() {
     const fxRaw = e.dataTransfer.getData(FX_MIME);
     if (fxRaw) {
       const fx = JSON.parse(fxRaw) as FxDrag;
-      if (li < 0 || lanes[li].track.kind !== 'video') return;
+      if (li < 0) return;
+      const lane = lanes[li].track;
+      const wantsAudio = fx.kind === 'afx' || fx.kind === 'atrans';
+      if ((lane.kind === 'audio') !== wantsAudio) {
+        toast(wantsAudio ? 'Ses efektleri ve ses geçişleri ses kanallarına (A1, A2…) bırakılır' : 'Video efektleri ve geçişleri video kanallarına (V1, V2…) bırakılır', 'error');
+        return;
+      }
       const base = committedSeq(st);
       const frame = frameAtClientX(e.clientX);
-      if (fx.kind === 'transition') {
-        const target = transitionTarget(base, lanes[li].track.id, frame, 14 / zoom);
-        if (target) addTransition(target.id, fx.id);
+      if (fx.kind === 'transition' || fx.kind === 'atrans') {
+        const target = transitionTarget(base, lane.id, frame, 14 / zoom, lane.kind);
+        if (target) addTransition(target.clip.id, fx.id, undefined, target.side);
+        else toast('Geçişi bir klibin başına, sonuna ya da iki klibin arasına bırakın', 'error');
       } else {
-        const under = Object.values(base.clips).find((c) => c.trackId === lanes[li].track.id && frame >= c.start && frame < clipEnd(c));
-        if (under) { addEffect([under.id], fx.id); selectClips([under.id]); }
+        const under = Object.values(base.clips).find((c) => c.trackId === lane.id && frame >= c.start && frame < clipEnd(c));
+        if (under) { if (fx.kind === 'afx') addAudioEffect([under.id], fx.id); else addEffect([under.id], fx.id); selectClips([under.id]); }
       }
       return;
     }
@@ -491,18 +499,22 @@ export function Timeline() {
                     {(clipsByTrack.get(l.track.id) ?? []).filter((c) => clipEnd(c) >= visFrom && c.start <= visTo).map((c) => (
                       <ClipView key={c.id} clip={c} zoom={zoom} height={l.h} selected={selection.includes(c.id)} tool={tool} onMouseDown={onClipMouseDown} fps={seq.fps} media={project.media[c.mediaId]} />
                     ))}
-                    {l.track.kind === 'video' && transitionWindows((clipsByTrack.get(l.track.id) ?? []).filter((c) => c.stream === 'video' && c.enabled).sort((a, b) => a.start - b.start)).windows.map((w) => (
-                      <div key={`tr-${w.B.id}`} className={`trans-block ${selTransition === w.B.id ? 'sel' : ''}`}
-                        style={{ left: w.a * zoom, width: Math.max(6, (w.b - w.a) * zoom) }}
-                        title={`${TRANSITION_BY_ID[w.type]?.name ?? w.type} · ${framesToTimecode(w.b - w.a, seq.fps)}\nÇift tık: süre · Delete: kaldır`}
-                        onMouseDown={(e) => { e.stopPropagation(); useStore.setState({ selection: [w.B.id], selTransition: w.B.id, leftTab: 'fx', focus: 'timeline' }); }}
-                        onDoubleClick={(e) => {
-                          e.stopPropagation();
-                          const v = window.prompt('Geçiş süresi (saniye)', ((w.b - w.a) / seq.fps).toFixed(2));
-                          const n = v ? Number(v.replace(',', '.')) : NaN;
-                          if (Number.isFinite(n) && n > 0) edit('Geçiş süresi', (s) => { const c = s.clips[w.B.id]; if (c.transIn) c.transIn.duration = Math.max(2, Math.round(n * s.fps)); });
-                        }}>{(w.b - w.a) * zoom > 40 ? TRANSITION_BY_ID[w.type]?.name ?? '' : ''}</div>
-                    ))}
+                    {transitionWindows((clipsByTrack.get(l.track.id) ?? []).filter((c) => c.stream === l.track.kind && c.enabled).sort((a, b) => a.start - b.start)).windows.map((w) => {
+                      const key = `${w.owner.id}:${w.side}`;
+                      const name = TRANSITION_BY_ID[w.type]?.name ?? AUDIO_TRANSITIONS.find((t) => t.id === w.type)?.name ?? w.type;
+                      return (
+                        <div key={`tr-${key}`} className={`trans-block ${w.side === 'out' && !w.B ? 'tail' : ''} ${!w.A ? 'head' : ''} ${selTransition === key ? 'sel' : ''}`}
+                          style={{ left: w.a * zoom, width: Math.max(6, (w.b - w.a) * zoom) }}
+                          title={`${name} · ${framesToTimecode(w.b - w.a, seq.fps)}${!w.B ? ' · kapanış' : !w.A ? ' · açılış' : ''}\nÇift tık: süre · Delete: kaldır`}
+                          onMouseDown={(e) => { e.stopPropagation(); useStore.setState({ selection: [w.owner.id], selTransition: key, leftTab: 'fx', focus: 'timeline' }); }}
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            const v = window.prompt('Geçiş süresi (saniye)', ((w.b - w.a) / seq.fps).toFixed(2));
+                            const n = v ? Number(v.replace(',', '.')) : NaN;
+                            if (Number.isFinite(n) && n > 0) edit('Geçiş süresi', (s) => { const c = s.clips[w.owner.id]; const t = w.side === 'in' ? c?.transIn : c?.transOut; if (t) t.duration = Math.max(2, Math.round(n * s.fps)); });
+                          }}>{(w.b - w.a) * zoom > 40 ? name : ''}</div>
+                      );
+                    })}
                   </div>
                 ))}
                 <div className="track-sep" style={{ position: 'absolute', top: sepY, left: 0, right: 0 }} />

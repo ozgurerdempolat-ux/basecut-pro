@@ -10,15 +10,18 @@ import { grader } from './grader';
 import { isNeutral } from '../core/color';
 import { EFFECT_BY_ID, motionAt, transitionWindows } from '../core/fx';
 import { applyEffects, drawBlurFill, drawTransition, release, tmpCanvas } from './fxPreview';
+import { AUDIO_FX_BY_ID, AUDIO_TRANSITIONS, PreviewNode, fadeGain } from '../core/audiofx';
 
 type Visual = { el: HTMLVideoElement | HTMLImageElement; path: string; ready: boolean };
-type Sound = { el: HTMLMediaElement; path: string; gain: GainNode | null; src: MediaElementAudioSourceNode | null };
+type Sound = { el: HTMLMediaElement; path: string; gain: GainNode | null; src: MediaElementAudioSourceNode | null; fxKey: string; fxNodes: AudioNode[]; track: string };
+type Strip = { gain: GainNode; pan: StereoPannerNode; meter: AnalyserNode };
 
 class Player {
   canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
   private visuals = new Map<string, Visual>();
   private sounds = new Map<string, Sound>();
+  private strips = new Map<string, Strip>();
   private raf = 0;
   private dirty = true;
   private t0 = 0;
@@ -164,7 +167,7 @@ class Player {
     const s = this.sounds.get(id);
     if (s) {
       s.el.pause(); s.el.removeAttribute('src'); s.el.load();
-      try { s.src?.disconnect(); s.gain?.disconnect(); } catch { /* */ }
+      try { s.src?.disconnect(); s.gain?.disconnect(); for (const n of s.fxNodes) n.disconnect(); } catch { /* */ }
       this.sounds.delete(id);
     }
   }
@@ -191,7 +194,7 @@ class Player {
         const b = Math.min(clipEnd(c), cutEnd.get(c.id) ?? Infinity);
         const inside = frame >= a && frame < b;
         const soon = lookahead && c.start > frame && c.start - frame < lookahead;
-        const inWin = windows.some((w) => (w.A?.id === c.id || w.B.id === c.id) && frame >= w.a - lookahead && frame < w.b);
+        const inWin = windows.some((w) => (w.A?.id === c.id || w.B?.id === c.id) && frame >= w.a - lookahead && frame < w.b);
         if (!inside && !soon && !inWin) continue;
         const m = media[c.mediaId];
         if (!m) continue;
@@ -205,7 +208,7 @@ class Player {
         const ca = tA.getContext('2d')!, cb = tB.getContext('2d')!;
         ca.clearRect(0, 0, W, H); cb.clearRect(0, 0, W, H);
         if (w.A && media[w.A.mediaId]) this.drawClipAt(ca, w.A, media[w.A.mediaId], frame, W, H, seq, res, playing, rate);
-        if (media[w.B.mediaId]) this.drawClipAt(cb, w.B, media[w.B.mediaId], frame, W, H, seq, res, playing, rate);
+        if (w.B && media[w.B.mediaId]) this.drawClipAt(cb, w.B, media[w.B.mediaId], frame, W, H, seq, res, playing, rate);
         drawTransition(ctx, tA, tB, w.type, (frame - w.a) / Math.max(1, w.b - w.a));
         release(tA); release(tB);
       }
@@ -299,6 +302,75 @@ class Player {
     if (tmp) release(tmp);
   }
 
+  /** per-track mixer strip: gain → pan → meter → master */
+  private strip(trackId: string): Strip | null {
+    if (!this.audio || !this.master) return null;
+    let s = this.strips.get(trackId);
+    if (!s) {
+      const gain = this.audio.createGain();
+      const pan = this.audio.createStereoPanner();
+      const meter = this.audio.createAnalyser();
+      meter.fftSize = 512;
+      gain.connect(pan); pan.connect(meter); meter.connect(this.master);
+      s = { gain, pan, meter };
+      this.strips.set(trackId, s);
+    }
+    return s;
+  }
+
+  /** peak level 0..1 of a track (for the mixer meters) */
+  trackLevel(trackId: string): number {
+    const s = this.strips.get(trackId);
+    if (!s || !useStore.getState().playing) return 0;
+    const buf = new Float32Array(s.meter.fftSize);
+    s.meter.getFloatTimeDomainData(buf);
+    let p = 0;
+    for (const v of buf) p = Math.max(p, Math.abs(v));
+    return p;
+  }
+
+  private buildFx(nodes: PreviewNode[]): AudioNode[] {
+    const ac = this.audio!;
+    const out: AudioNode[] = [];
+    for (const n of nodes) {
+      if (n.type === 'biquad') { const b = ac.createBiquadFilter(); b.type = n.filter; b.frequency.value = n.frequency; if (n.gain !== undefined) b.gain.value = n.gain; if (n.Q !== undefined) b.Q.value = n.Q; out.push(b); }
+      if (n.type === 'compressor') { const c = ac.createDynamicsCompressor(); c.threshold.value = n.threshold; c.ratio.value = n.ratio; c.attack.value = n.attack; c.release.value = n.release; if (n.knee !== undefined) c.knee.value = n.knee; out.push(c); }
+      if (n.type === 'gain') { const g = ac.createGain(); g.gain.value = Math.pow(10, n.db / 20); out.push(g); }
+      if (n.type === 'reverb') {
+        // small synthetic room: decaying noise impulse, mixed wet/dry
+        const len = Math.round(ac.sampleRate * n.seconds);
+        const ir = ac.createBuffer(2, len, ac.sampleRate);
+        for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+        const split = ac.createGain(), conv = ac.createConvolver(), wet = ac.createGain(), dry = ac.createGain(), sum = ac.createGain();
+        conv.buffer = ir; wet.gain.value = n.mix; dry.gain.value = 1 - n.mix * 0.5;
+        split.connect(conv); conv.connect(wet); wet.connect(sum); split.connect(dry); dry.connect(sum);
+        // expose as a two-port pseudo node: input = split, output = sum
+        (split as unknown as { __out: AudioNode }).__out = sum;
+        out.push(split);
+      }
+    }
+    return out;
+  }
+
+  private wire(s: Sound, c: Clip, trackId: string) {
+    if (!this.audio || !s.src || !s.gain) return;
+    const key = JSON.stringify(c.audioFx ?? []) + trackId;
+    if (s.fxKey === key) return;
+    try { s.src.disconnect(); } catch { /* */ }
+    for (const n of s.fxNodes) { try { n.disconnect(); ((n as unknown as { __out?: AudioNode }).__out)?.disconnect(); } catch { /* */ } }
+    try { s.gain.disconnect(); } catch { /* */ }
+    const nodes: PreviewNode[] = [];
+    for (const e of c.audioFx ?? []) if (e.enabled && AUDIO_FX_BY_ID[e.type]) nodes.push(...AUDIO_FX_BY_ID[e.type].preview(e.params));
+    s.fxNodes = this.buildFx(nodes);
+    let cur: AudioNode = s.src;
+    for (const n of s.fxNodes) { cur.connect(n); cur = (n as unknown as { __out?: AudioNode }).__out ?? n; }
+    cur.connect(s.gain);
+    const strip = this.strip(trackId);
+    s.gain.connect(strip ? strip.gain : this.master!);
+    s.fxKey = key;
+    s.track = trackId;
+  }
+
   private syncAudio(seq: Sequence, f: number, playing: boolean, rate: number) {
     const st = useStore.getState();
     const live = new Set<string>();
@@ -306,9 +378,13 @@ class Player {
       const frame = Math.floor(f);
       const anySolo = seq.tracks.some((t) => t.kind === 'audio' && t.solo);
       for (const t of seq.tracks) {
-        if (t.kind !== 'audio' || t.muted || (anySolo && !t.solo)) continue;
-        for (const c of Object.values(seq.clips)) {
-          if (c.trackId !== t.id || c.stream !== 'audio' || !c.enabled || c.speed < 0) continue;
+        if (t.kind !== 'audio') continue;
+        const strip = this.strip(t.id);
+        const audible = !t.muted && (!anySolo || t.solo);
+        if (strip) { strip.gain.gain.value = audible ? Math.pow(10, t.volumeDb / 20) : 0; strip.pan.pan.value = (t.pan ?? 0) / 100; }
+        if (!audible) continue;
+        const clips = Object.values(seq.clips).filter((c) => c.trackId === t.id && c.stream === 'audio' && c.enabled && c.speed > 0).sort((a, b) => a.start - b.start);
+        for (const c of clips) {
           if (frame < c.start || frame >= clipEnd(c)) continue;
           const m = st.project.media[c.mediaId];
           if (!m || !m.online) continue;
@@ -318,25 +394,28 @@ class Player {
           if (s && s.path !== path) { this.dispose(c.id); s = undefined; }
           if (!s) {
             const el = new Audio();
-            el.crossOrigin = 'anonymous'; // required for WebAudio gain/metering across origins
+            el.crossOrigin = 'anonymous'; // required for WebAudio across origins
             el.preload = 'auto';
             el.src = window.kurgu.mediaUrl(path);
-            s = { el, path, gain: null, src: null };
+            s = { el, path, gain: null, src: null, fxKey: '', fxNodes: [], track: t.id };
             if (this.audio && this.master) {
-              try {
-                s.src = this.audio.createMediaElementSource(el);
-                s.gain = this.audio.createGain();
-                s.src.connect(s.gain);
-                s.gain.connect(this.master);
-              } catch { /* fall back to element volume */ }
+              try { s.src = this.audio.createMediaElementSource(el); s.gain = this.audio.createGain(); } catch { s.src = null; s.gain = null; }
             }
             this.sounds.set(c.id, s);
           }
+          this.wire(s, c, t.id);
           live.add(c.id);
           const srcT = sourceTimeAt(c, frame, seq.fps) ?? c.srcIn;
-          const db = evalParam(c.volumeDb, frame - c.start) + t.volumeDb;
-          const g = Math.pow(10, db / 20);
-          if (s.gain) s.gain.gain.value = g; else s.el.volume = Math.min(1, g);
+          // clip volume + fades (preview fades happen inside the clip)
+          let g = Math.pow(10, evalParam(c.volumeDb, frame - c.start) / 20);
+          const curveOf = (t: string) => AUDIO_TRANSITIONS.find((x) => x.id === t)?.curve ?? 'qsin';
+          const prev = clips.find((x) => clipEnd(x) === c.start && x.id !== c.id);
+          const next = clips.find((x) => x.start === clipEnd(c) && x.id !== c.id);
+          const fin = c.transIn ?? prev?.transOut;
+          if (fin) g *= fadeGain(curveOf(fin.type), (frame - c.start) / Math.max(1, fin.duration / (prev ? 2 : 1)));
+          const fout = next ? (next.transIn ?? c.transOut) : c.transOut;
+          if (fout) g *= fadeGain(curveOf(fout.type), (clipEnd(c) - frame) / Math.max(1, fout.duration / (next ? 2 : 1)));
+          if (s.gain) s.gain.gain.value = g; else s.el.volume = Math.min(1, g * Math.pow(10, t.volumeDb / 20));
           const pr = Math.abs(c.speed * rate);
           s.el.preservesPitch = true;
           if (Math.abs(s.el.playbackRate - pr) > 1e-3) s.el.playbackRate = pr;

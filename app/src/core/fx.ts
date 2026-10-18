@@ -300,7 +300,22 @@ export const TRANSITION_BY_ID: Record<string, TransitionDef> = Object.fromEntrie
 
 // ------------------------------------------------------------------ transition windows (shared by preview and export)
 
-export interface TransitionWindow { a: number; b: number; A: import('./model').Clip | null; B: import('./model').Clip; type: string }
+export interface TransitionWindow {
+  a: number; b: number;
+  /** outgoing / incoming side; null = nothing (from/to black or the tracks below) */
+  A: import('./model').Clip | null; B: import('./model').Clip | null;
+  type: string;
+  /** the clip that stores the transition and on which side */
+  owner: import('./model').Clip; side: 'in' | 'out';
+}
+
+/** selection key for a transition ("clipId:in" / "clipId:out") */
+export const transKey = (clipId: string, side: 'in' | 'out') => `${clipId}:${side}`;
+export function parseTransKey(k: string): { id: string; side: 'in' | 'out' } {
+  const i = k.lastIndexOf(':');
+  const side = k.slice(i + 1);
+  return side === 'out' || side === 'in' ? { id: k.slice(0, i), side } : { id: k, side: 'in' };
+}
 
 /** where each transition on a track plays, and where the neighbouring clips stop being drawn on their own */
 export function transitionWindows(clips: import('./model').Clip[]): { windows: TransitionWindow[]; cutStart: Map<string, number>; cutEnd: Map<string, number> } {
@@ -308,24 +323,39 @@ export function transitionWindows(clips: import('./model').Clip[]): { windows: T
   const windows: TransitionWindow[] = [];
   const cutStart = new Map<string, number>();
   const cutEnd = new Map<string, number>();
+  const cut = (A: import('./model').Clip, B: import('./model').Clip, tr: TransitionSpec, owner: import('./model').Clip, side: 'in' | 'out') => {
+    const d = Math.min(tr.duration, A.duration + B.duration - 2);
+    const half = Math.floor(d / 2);
+    const a = Math.max(A.start + 1, B.start - half);
+    const b = Math.min(end(B) - 1, a + d);
+    if (b - a < 2) return;
+    windows.push({ a, b, A, B, type: tr.type, owner, side });
+    cutEnd.set(A.id, Math.min(cutEnd.get(A.id) ?? Infinity, a));
+    cutStart.set(B.id, Math.max(cutStart.get(B.id) ?? -Infinity, b));
+  };
+  // heads: a cut transition, or from nothing
   for (const B of clips) {
     const tr = B.transIn;
     if (!tr || tr.duration < 2) continue;
     const A = clips.find((x) => end(x) === B.start && x.id !== B.id) ?? null;
-    let a: number, b: number;
-    if (A) {
-      const d = Math.min(tr.duration, A.duration + B.duration - 2);
-      const half = Math.floor(d / 2);
-      a = Math.max(A.start + 1, B.start - half);
-      b = Math.min(end(B) - 1, a + d);
-    } else {
-      a = B.start;
-      b = Math.min(end(B), B.start + tr.duration);
-    }
+    if (A) { cut(A, B, tr, B, 'in'); continue; }
+    const a = B.start, b = Math.min(end(B), B.start + tr.duration);
     if (b - a < 2) continue;
-    windows.push({ a, b, A, B, type: tr.type });
-    if (A) cutEnd.set(A.id, Math.min(cutEnd.get(A.id) ?? Infinity, a));
+    windows.push({ a, b, A: null, B, type: tr.type, owner: B, side: 'in' });
     cutStart.set(B.id, Math.max(cutStart.get(B.id) ?? -Infinity, b));
   }
+  // tails: to nothing (fade out / dip to black at the end), or into a neighbour that has no head transition
+  for (const A of clips) {
+    const tr = A.transOut;
+    if (!tr || tr.duration < 2) continue;
+    const N = clips.find((x) => x.start === end(A) && x.id !== A.id) ?? null;
+    if (N) { if (!N.transIn) cut(A, N, tr, A, 'out'); continue; }
+    const b = end(A);
+    const a = Math.max(b - tr.duration, cutStart.get(A.id) ?? A.start);
+    if (b - a < 2) continue;
+    windows.push({ a, b, A, B: null, type: tr.type, owner: A, side: 'out' });
+    cutEnd.set(A.id, Math.min(cutEnd.get(A.id) ?? Infinity, a));
+  }
+  windows.sort((x, y) => x.a - y.a);
   return { windows, cutStart, cutEnd };
 }

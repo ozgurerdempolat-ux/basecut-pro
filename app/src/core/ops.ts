@@ -105,7 +105,8 @@ export function splitAt(s: Sequence, frame: number, trackIds: Id[]): Id[] {
       right.linkId = newLinks.get(c.linkId)!;
     }
     shiftKeyframes(right, -leftDur);
-    delete right.transIn; // a transition belongs to the head of the original clip
+    delete right.transIn; // the head transition stays on the left part,
+    delete c.transOut; //    the tail transition moves to the right part
     c.duration = leftDur;
     s.clips[right.id] = right;
     created.push(right.id);

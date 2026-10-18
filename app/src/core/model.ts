@@ -55,6 +55,8 @@ export interface Track {
   targeted: boolean;
   height: number;
   volumeDb: number;
+  /** -100 (left) .. 100 (right), audio tracks */
+  pan?: number;
 }
 
 export type LabelColor =
@@ -102,8 +104,12 @@ export interface Clip {
   color?: import('./color').ColorGrade;
   /** applied video effects, in order */
   effects?: import('./fx').ClipEffect[];
-  /** transition into this clip (from the clip that ends where this one starts, or from black) */
+  /** transition into this clip (from the clip that ends where this one starts, or from black/silence) */
   transIn?: import('./fx').TransitionSpec;
+  /** transition out of this clip at its tail (to black/silence, or into the next clip when that has none) */
+  transOut?: import('./fx').TransitionSpec;
+  /** audio effects (audio clips) */
+  audioFx?: import('./audiofx').AudioEffect[];
 }
 
 export interface Marker {
