@@ -14,7 +14,7 @@
     "dist:linux": "npm run build && electron-builder --linux"
   },
   "author": "The Base Social",
-  "license": "UNLICENSED",
+  "license": "GPL-3.0-or-later",
   "devDependencies": {
     "@expo-google-fonts/montserrat": "^0.4.2",
     "@huggingface/transformers": "^4.3.1",
@@ -145,7 +145,16 @@
       {
         "from": "resources/fonts",
         "to": "fonts"
+      },
+      {
+        "from": "../LICENSE",
+        "to": "LICENSE.txt"
       }
     ]
+  },
+  "homepage": "https://github.com/ozgurerdempolat-ux/basecut-pro",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ozgurerdempolat-ux/basecut-pro"
   }
 }

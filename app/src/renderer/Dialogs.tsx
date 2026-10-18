@@ -138,7 +138,7 @@ function ShortcutsDialog() {
 function AboutDialog() {
   return (
     <Modal title="BaseCut Pro hakkında" onClose={close} footer={<button className="btn primary" onClick={close}>Kapat</button>}>
-      <div><b>BaseCut Pro</b> 0.1 — ücretsiz, hafif, profesyonel video kurgu.</div>
+      <div><b>BaseCut Pro</b> 0.1 — ücretsiz, hafif, profesyonel video kurgu. Özgür yazılım (GPL-3.0).</div>
       <div style={{ color: 'var(--text-2)' }}>The Base Social tarafından geliştirilmektedir. Video işleme FFmpeg (LGPL/GPL) ile yapılır.</div>
     </Modal>
   );

@@ -36,6 +36,12 @@ Windows (kurulum + taşınabilir), Mac Apple Silicon, Mac Intel. `v0.1.0` gibi b
 | `app/src/renderer` | Arayüz: proje paneli, monitörler, timeline, efekt kontrolleri, export |
 | `replica/` | Ürün araştırması: özellik haritası (`features.csv`), kullanıcı yorumları analizi (`fixes.md`) |
 
+## Lisans
+
+BaseCut Pro özgür yazılımdır: **GNU Genel Kamu Lisansı sürüm 3 veya sonrası (GPL-3.0-or-later)** koşullarıyla dağıtılır; tam metin [LICENSE](LICENSE) dosyasındadır. Programı kullanabilir, inceleyebilir, değiştirebilir ve paylaşabilirsiniz. Değiştirilmiş sürümleri dağıtırsanız kaynak kodunu da aynı lisansla açmanız gerekir.
+
+© 2026 The Base Social (Özgür Erdem Polat, Gamze Mete)
+
 ## Üçüncü taraf yazılımlar
 
-Video işleme [FFmpeg](https://ffmpeg.org) ile yapılır. Programla birlikte gelen ffmpeg/ffprobe çalıştırılabilir dosyaları kendi lisanslarıyla (GPL/LGPL) dağıtılır; lisans metinleri kurulumda `resources/app.asar.unpacked/node_modules/ffmpeg-static/` altındadır ve kaynak kodu ffmpeg.org adresinden edinilebilir. Arayüz Electron ve React (MIT) üzerine kuruludur.
+Video işleme [FFmpeg](https://ffmpeg.org) ile yapılır. Programla birlikte gelen ffmpeg/ffprobe çalıştırılabilir dosyaları kendi lisanslarıyla (GPL/LGPL) dağıtılır; lisans metinleri kurulumda `resources/app.asar.unpacked/node_modules/ffmpeg-static/` altındadır ve kaynak kodu ffmpeg.org adresinden edinilebilir. Arayüz Electron ve React (MIT) üzerine kuruludur. Altyazı fontu Montserrat (SIL Open Font License), konuşma tanıma Whisper modelleri (MIT) ve transformers.js (Apache-2.0) ile yapılır.
