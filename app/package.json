@@ -1,14 +1,20 @@
 {
-  "name": "app",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "kurgu",
+  "version": "0.1.0",
+  "description": "Ücretsiz, hafif, profesyonel video kurgu programı",
+  "main": "out/main/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "dist:win": "electron-vite build && electron-builder --win",
+    "dist:mac": "electron-vite build && electron-builder --mac",
+    "dist:linux": "electron-vite build && electron-builder --linux"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "The Base Social",
+  "license": "UNLICENSED",
   "devDependencies": {
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
@@ -17,6 +23,7 @@
     "electron": "^44.9.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^6.0.0",
+    "playwright": "^1.64.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "vitest": "^5.0.5"
@@ -29,5 +36,7 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "zustand": "^5.0.15"
-  }
+  },
+  "productName": "Kurgu",
+  "type": "commonjs"
 }

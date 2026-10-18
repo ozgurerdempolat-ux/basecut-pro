@@ -74,6 +74,11 @@ function assertUnlocked(s: Sequence, trackId: Id): void {
 
 // ------------------------------------------------------------- primitives
 
+/** deep copy that also works on immer drafts (structuredClone does not) */
+export function cloneClip(c: Clip): Clip {
+  return JSON.parse(JSON.stringify(c)) as Clip;
+}
+
 /**
  * Split every clip on the given tracks that crosses `frame`. Linked partners
  * split at the same frame stay linked to each other. Returns new right-hand ids.
@@ -85,7 +90,7 @@ export function splitAt(s: Sequence, frame: number, trackIds: Id[]): Id[] {
     if (!trackIds.includes(c.trackId)) continue;
     if (frame <= c.start || frame >= clipEnd(c)) continue;
     const leftDur = frame - c.start;
-    const right: Clip = structuredClone(c);
+    const right: Clip = cloneClip(c);
     right.id = newId('clip');
     right.start = frame;
     right.duration = c.duration - leftDur;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MediaItem, Sequence, clipEnd, clipSrcOut, clipsOnTrack, evalParam, framesToTimecode, makeSequence, sourceTimeAt, timecodeToFrames, tracksOfKind } from './model';
 import * as ops from './ops';
+import { produce } from 'immer';
 
 function media(id: string, duration = 10, kind: MediaItem['kind'] = 'video'): MediaItem {
   return {
@@ -390,5 +391,20 @@ describe('tracks and misc', () => {
         }
       }
     }
+  });
+});
+
+describe('works on immer drafts (as in the app)', () => {
+  it('razor, insert, paste-like edits inside produce()', () => {
+    const { s, V1, A1, M } = setup();
+    const s1 = produce(s, (d) => { ops.overwriteEdit(d, { media: M.a, srcIn: 0, srcOut: 4 }, 0, V1, A1); });
+    const s2 = produce(s1, (d) => { ops.razor(d, 30); });
+    expect(Object.keys(s2.clips)).toHaveLength(4);
+    const s3 = produce(s2, (d) => { ops.insertEdit(d, { media: M.b, srcIn: 0, srcOut: 1 }, 30, V1, A1); });
+    expect(Object.keys(s3.clips)).toHaveLength(6);
+    const s4 = produce(s3, (d) => { ops.overwriteEdit(d, { media: M.c, srcIn: 0, srcOut: 1 }, 15, V1, A1); });
+    expect(clipsOnTrack(s4, V1).map((c) => c.start)).toEqual([0, 15, 45, 60]);
+    // original states untouched (undo history relies on this)
+    expect(Object.keys(s1.clips)).toHaveLength(2);
   });
 });
