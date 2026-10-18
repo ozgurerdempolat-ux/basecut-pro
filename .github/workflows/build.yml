@@ -7,6 +7,15 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # test-only tools; don't download browsers / native ML runtimes in CI
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+  ONNXRUNTIME_NODE_INSTALL: skip
+
 jobs:
   test:
     runs-on: ubuntu-latest
