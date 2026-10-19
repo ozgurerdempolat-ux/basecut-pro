@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatableParam, Clip, KEY_EASES, KeyEase, LabelColor, MediaItem, evalParam, framesToTimecode, makeSequence } from '../core/model';
+import { AnimatableParam, BLEND_MODES, BlendMode, Clip, KEY_EASES, KeyEase, LabelColor, MediaItem, evalParam, framesToTimecode, makeSequence } from '../core/model';
 import { MenuItem, openMenu } from './ContextMenu';
 import { I } from './icons';
 import { CaptionsPanel } from './Captions';
 import { ColorPanel } from './ColorPanel';
 import { AudioEffectStack, EffectStack, EffectsLibrary, TransitionControls } from './Effects';
 import { MixerPanel } from './Mixer';
+import { SyntheticKind, createSynthetic } from './synthetic';
 import { mediaMenu } from './menus';
 import { createTitle, updateTitle } from './titles';
 import { TITLE_FONTS, TITLE_PRESETS, TitleData } from '../core/title';
@@ -85,6 +86,13 @@ export function ProjectPanel() {
             <select className="mini" value="" title="Yeni başlık" onChange={(e) => { if (e.target.value) void createTitle(e.target.value); e.target.value = ''; }}>
               <option value="">+ Başlık</option>
               {TITLE_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <select className="mini" value="" title="Yeni öğe" onChange={(e) => { const v = e.target.value; e.target.value = ''; if (v === 'matte') { const c = window.prompt('Renk (ör. #ff6a3d)', '#ff6a3d'); const n = c ? parseInt(c.replace('#', ''), 16) : NaN; if (Number.isFinite(n)) void createSynthetic('matte', n); } else if (v) void createSynthetic(v as SyntheticKind); }}>
+              <option value="">+ Yeni öğe</option>
+              <option value="adjustment">Ayar katmanı</option>
+              <option value="matte">Renk katmanı…</option>
+              <option value="black">Siyah video</option>
+              <option value="transparent">Şeffaf video</option>
             </select>
             <button className="btn small primary" onClick={open}>{I.import} İçe aktar</button>
           </div>
@@ -204,6 +212,10 @@ export function EffectControls() {
           </Group>
           <Group title="Opaklık">
             <ParamRow clip={clip} k="opacity" label="Opaklık" local={local} step={1} unit="%" min={0} max={100} />
+            <div className="fx-row"><span /><span className="lbl">Karışım modu</span>
+              <select className="mini" value={clip.blend ?? 'normal'} onChange={(e) => edit('Karışım modu', (s) => { const v = e.target.value as BlendMode; if (v === 'normal') delete s.clips[clip.id].blend; else s.clips[clip.id].blend = v; })}>
+                {BLEND_MODES.map((b) => <option key={b.id} value={b.id}>{b.group ? `${b.name}` : b.name}</option>)}
+              </select><span /></div>
           </Group>
         </>
       )}

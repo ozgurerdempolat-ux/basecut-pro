@@ -200,6 +200,7 @@ class Player {
         if (!inside && !soon && !inWin) continue;
         const m = media[c.mediaId];
         if (!m) continue;
+        if (m.synthetic?.type === 'adjustment') { if (inside) this.applyAdjustment(ctx, c, frame - c.start, W, H, seq); continue; }
         live.add(c.id);
         if (inside) this.drawClipAt(ctx, c, m, frame, W, H, seq, res, playing, rate);
         else if (soon) this.preroll(c, m, seq);
@@ -302,12 +303,39 @@ class Player {
     }
     ctx.save();
     ctx.globalAlpha = Math.max(0, Math.min(1, evalParam(t.opacity, local) / 100));
+    if (c.blend && c.blend !== 'normal') ctx.globalCompositeOperation = c.blend === 'add' ? 'lighter' : c.blend;
     ctx.translate(x, y);
     const rot = evalParam(t.rotation, local);
     if (rot) ctx.rotate((rot * Math.PI) / 180);
     ctx.drawImage(frameSrc, -w / 2, -h / 2, w, h);
     ctx.restore();
     if (tmp) release(tmp);
+  }
+
+  /** adjustment layer: its colour grade, effects and motion applied to everything drawn so far */
+  private applyAdjustment(ctx: CanvasRenderingContext2D, c: Clip, local: number, W: number, H: number, seq: Sequence) {
+    const snap = tmpCanvas(W, H);
+    const sc = snap.getContext('2d', { willReadFrequently: true })!;
+    sc.clearRect(0, 0, W, H);
+    sc.drawImage(ctx.canvas, 0, 0);
+    let src: HTMLCanvasElement = snap;
+    if (c.color && (!isNeutral(c.color) || c.color.vignette)) { const g = grader.process(snap, c.color, W); if (g) src = g; }
+    let fx: HTMLCanvasElement | null = null;
+    if (c.effects?.some((e) => e.enabled && EFFECT_BY_ID[e.type] && !EFFECT_BY_ID[e.type].kind)) {
+      fx = tmpCanvas(W, H);
+      const fc = fx.getContext('2d', { willReadFrequently: true })!;
+      fc.clearRect(0, 0, W, H); fc.drawImage(src, 0, 0, W, H);
+      applyEffects(fx, c.effects, local, H);
+      src = fx;
+    }
+    const mo = motionAt(c.effects, H, seq.fps, local);
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, evalParam(c.transform.opacity, local) / 100));
+    ctx.translate(W / 2 + mo.dx, H / 2 + mo.dy);
+    if (mo.scale !== 1) ctx.scale(mo.scale, mo.scale);
+    ctx.drawImage(src, -W / 2, -H / 2, W, H);
+    ctx.restore();
+    release(snap); if (fx) release(fx);
   }
 
   /** per-track mixer strip: gain → pan → meter → master */

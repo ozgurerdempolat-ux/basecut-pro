@@ -33,8 +33,8 @@ Offline media detection,media,must,yes,yes,red offline frame
 Link media / relink with auto-find in folder,media,must,yes,partial,S13 F17
 Replace footage,media,should,yes,no,
 Subclips,media,should,yes,no,
-Synthetic items: color matte / bars & tone / black video / transparent video / countdown,media,should,yes,partial,
-Adjustment layer,media,must,yes,no,
+Synthetic items: color matte / bars & tone / black video / transparent video / countdown,media,should,yes,yes,
+Adjustment layer,media,must,yes,yes,
 Ingest presets: copy / transcode / proxies,media,should,yes,no,S14
 Create proxies on demand,media,should,yes,yes,F15
 Toggle proxies in monitor,media,should,yes,yes,
@@ -141,7 +141,7 @@ Copy/paste keyframes and effects across clips,effects,must,yes,yes,
 Effect presets save / apply,effects,should,yes,no,
 Effects panel with search and custom bins,effects,must,yes,yes,S35
 Effect bypass toggle,effects,must,yes,yes,
-Blend modes on opacity,effects,must,yes,no,
+Blend modes on opacity,effects,must,yes,yes,
 Masks: ellipse / polygon / free bezier,effects,must,yes,no,
 Mask feather / expansion / opacity / invert,effects,must,yes,no,
 Mask tracking forward / backward,effects,should,yes,no,
@@ -160,7 +160,7 @@ Noise & grain effects,effects-lib,should,yes,yes,
 Perspective effects (basic 3D / drop shadow / bevel),effects-lib,should,yes,no,
 Stylize effects (glow / mosaic / posterize / find edges / strobe / roughen edges),effects-lib,should,yes,yes,
 Time effects (echo / posterize time),effects-lib,could,yes,no,
-Transform effects (crop / flip / transform / auto reframe),effects-lib,must,yes,no,
+Transform effects (crop / flip / transform / auto reframe),effects-lib,must,yes,partial,
 Utility effects (cineon converter / timecode / clip name),effects-lib,could,yes,no,
 Video transitions: cross dissolve / dip to black / dip to white / film dissolve / morph cut,transitions,must,yes,yes,
 Video transitions: slide / push / wipe / iris / zoom / page peel / 3D motion,transitions,should,yes,yes,

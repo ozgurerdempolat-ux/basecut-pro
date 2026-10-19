@@ -33,6 +33,8 @@ export interface MediaItem {
   markOut: number | null;
   /** set for generated titles: the design the image was rendered from */
   title?: import('./title').TitleData;
+  /** generated items: adjustment layer (applies its effects to everything below) or colour matte */
+  synthetic?: { type: 'adjustment' | 'matte'; color?: number };
 }
 
 export interface Bin {
@@ -75,6 +77,15 @@ export interface Keyframe {
  * linear · hold (step) · ease (slow out and in) · in (slow arrival at the next key)
  * · out (slow departure from this key) · fast (punchy: quick, then settles)
  */
+export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'soft-light' | 'hard-light' | 'darken' | 'lighten' | 'color-dodge' | 'color-burn' | 'difference' | 'exclusion' | 'add';
+export const BLEND_MODES: { id: BlendMode; name: string; group: string }[] = [
+  { id: 'normal', name: 'Normal', group: '' },
+  { id: 'darken', name: 'Koyulaştır', group: 'Koyulaştırma' }, { id: 'multiply', name: 'Çarp', group: 'Koyulaştırma' }, { id: 'color-burn', name: 'Renk yanması', group: 'Koyulaştırma' },
+  { id: 'lighten', name: 'Açıklaştır', group: 'Açıklaştırma' }, { id: 'screen', name: 'Ekran', group: 'Açıklaştırma' }, { id: 'color-dodge', name: 'Renk soldurma', group: 'Açıklaştırma' }, { id: 'add', name: 'Doğrusal ekle (parlama)', group: 'Açıklaştırma' },
+  { id: 'overlay', name: 'Bindirme', group: 'Kontrast' }, { id: 'soft-light', name: 'Yumuşak ışık', group: 'Kontrast' }, { id: 'hard-light', name: 'Sert ışık', group: 'Kontrast' },
+  { id: 'difference', name: 'Fark', group: 'Fark' }, { id: 'exclusion', name: 'Dışlama', group: 'Fark' },
+];
+
 export type KeyEase = 'linear' | 'hold' | 'ease' | 'in' | 'out' | 'fast';
 export const KEY_EASES: { id: KeyEase; name: string }[] = [
   { id: 'linear', name: 'Doğrusal' },
@@ -139,6 +150,8 @@ export interface Clip {
   audioFx?: import('./audiofx').AudioEffect[];
   /** frame hold: the clip shows this source time (seconds) as a still, silent */
   freeze?: number;
+  /** how the clip mixes with the tracks below (Opacity › Blend Mode) */
+  blend?: BlendMode;
   /** finished Warp Stabilizer render for this clip (see core/stabilize.ts) */
   stab?: import('./stabilize').StabResult;
 }

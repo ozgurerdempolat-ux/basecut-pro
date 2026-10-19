@@ -260,6 +260,56 @@ export function buildRenderPlan(
         const a = Math.max(c.start, from, cutStart.get(c.id) ?? -Infinity);
         const b = Math.min(clipEnd(c), to, cutEnd.get(c.id) ?? Infinity);
         if (b <= a) continue;
+        const cm = project.media[c.mediaId];
+        if (cm?.synthetic?.type === 'adjustment') {
+          // adjustment layer: grade / effects / motion applied to the composite below, inside its window
+          const ta = (a - from) / F, len = (b - a) / F;
+          const chain: string[] = [`trim=start=${r6(ta)}:end=${r6(ta + len)}`, 'setpts=PTS-STARTPTS'];
+          const lut = lutFor(c);
+          if (lut) chain.push(`format=rgb24,lut3d=file='${escapeFilterPath(lut)}':interp=tetrahedral`);
+          if (c.color && c.color.vignette < 0) chain.push(`vignette=angle=${r6((Math.PI / 5) * Math.min(1, -c.color.vignette / 60))}:mode=forward`);
+          for (const e of c.effects ?? []) {
+            const def = e.enabled ? EFFECT_BY_ID[e.type] : undefined;
+            if (!def || def.kind) continue;
+            const fstr = def.ffmpeg(e.params, { fps, W, H, sw: W, sh: H });
+            if (fstr && fstr !== 'null') chain.push(fstr);
+          }
+          chain.push('format=yuva420p');
+          const mo = motionOf(c.effects, H, F);
+          const cs = -(a - c.start) / F;
+          const Lexpr = `((t-${r6(cs)})*${r6(F)})`;
+          const withL = (e: string) => e.replace(/\bL\b/g, Lexpr);
+          if (mo) chain.push(`scale=w='trunc(${W}*(${withL(mo.scale)})/2)*2':h='trunc(${H}*(${withL(mo.scale)})/2)*2':eval=frame`);
+          const op = c.transform.opacity.value;
+          if (op < 100) chain.push(`colorchannelmixer=aa=${r6(op / 100)}`);
+          chain.push(`setpts=PTS+${r6(ta)}/TB`);
+          const [x1, x2, adj] = ['ab', 'ab', 'aj'].map(lbl);
+          filters.push(`[${last}]split[${x1}][${x2}]`);
+          filters.push(`[${x2}]${chain.join(',')}[${adj}]`);
+          const lx = mo ? `(W-w)/2+(${withL(mo.dx).replace(/\bt\b/g, `(t-${r6(ta)})`)})` : '0';
+          const ly = mo ? `(H-h)/2+(${withL(mo.dy).replace(/\bt\b/g, `(t-${r6(ta)})`)})` : '0';
+          last = overlayAll(x1, [{ label: adj, x: lx, y: ly, anim: !!mo }], `between(t,${r6(ta)},${r6(ta + len - 0.5 / fps)})`);
+          continue;
+        }
+        if (c.blend && c.blend !== 'normal') {
+          // blend modes: mix the clip with what is below it, only inside its window
+          const L = layer(c, a, b, 0);
+          if (!L) continue;
+          const ta = (a - from) / F, len = (b - a) / F;
+          const cv = lbl('bcv');
+          filters.push(`color=c=black@0:s=${W}x${H}:r=${r6(fps)}:d=${r6(len)},format=yuva420p[${cv}]`);
+          const full = overlayAll(cv, L.layers, null);
+          const [b1, b2, f1, f2, bw, fg, bl, fa, bm] = ['bb', 'bb', 'bf', 'bf', 'bw', 'bg', 'bl', 'ba', 'bm'].map(lbl);
+          filters.push(`[${last}]split[${b1}][${b2}]`);
+          filters.push(`[${b2}]trim=start=${r6(ta)}:end=${r6(ta + len)},setpts=PTS-STARTPTS,format=gbrp[${bw}]`);
+          filters.push(`[${full}]split[${f1}][${f2}]`);
+          filters.push(`[${f1}]format=gbrp[${fg}]`);
+          filters.push(`[${fg}][${bw}]${blendFilter(c.blend)}[${bl}]`);
+          filters.push(`[${f2}]alphaextract[${fa}]`);
+          filters.push(`[${bl}][${fa}]alphamerge,format=yuva420p,setpts=PTS+${r6(ta)}/TB[${bm}]`);
+          last = overlayAll(b1, [{ label: bm, x: '0', y: '0', anim: false }], `between(t,${r6(ta)},${r6(ta + len - 0.5 / fps)})`);
+          continue;
+        }
         const L = layer(c, a, b, (a - from) / F);
         if (!L) continue;
         last = overlayAll(last, L.layers, `between(t,${r6((a - from) / F)},${r6((b - from) / F - 0.5 / fps)})`);
@@ -402,6 +452,24 @@ export function buildRenderPlan(
 
 function even(n: number): number {
   return Math.max(2, Math.round(n / 2) * 2);
+}
+
+/**
+ * ffmpeg blend for a canvas/W3C blend mode, inputs [top][bottom] in gbrp.
+ * ffmpeg's 'overlay'/'hardlight' are each other's W3C counterpart; soft light
+ * uses the W3C formula directly so preview and export match.
+ */
+export function blendFilter(mode: import('./model').BlendMode): string {
+  const m: Record<string, string> = {
+    multiply: 'multiply', screen: 'screen', overlay: 'hardlight', 'hard-light': 'overlay', darken: 'darken', lighten: 'lighten',
+    'color-dodge': 'dodge', 'color-burn': 'burn', difference: 'difference', exclusion: 'exclusion', add: 'addition',
+  };
+  if (mode === 'soft-light') {
+    const b = '(B/255)', s = '(A/255)';
+    const d = `if(lte(${b},0.25),((16*${b}-12)*${b}+4)*${b},sqrt(${b}))`;
+    return `blend=all_expr='255*clip(if(lte(${s},0.5),${b}-(1-2*${s})*${b}*(1-${b}),${b}+(2*${s}-1)*(${d}-${b})),0,1)'`;
+  }
+  return `blend=all_mode=${m[mode] ?? 'normal'}`;
 }
 
 function escapeFilterPath(p: string): string {

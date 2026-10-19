@@ -71,6 +71,25 @@ export const EFFECTS: FxDef[] = [
     ],
     ffmpeg: () => 'null',
   },
+  // --------------------------------------------------- framing
+  {
+    id: 'crop', name: 'Kırp', category: 'Kadraj', alpha: true,
+    desc: 'Kenarlardan kırpar (kırpılan yer şeffaf olur, alttaki iz görünür)',
+    params: [
+      { key: 'left', label: 'Sol', min: 0, max: 100, step: 0.5, def: 0, unit: '%' },
+      { key: 'top', label: 'Üst', min: 0, max: 100, step: 0.5, def: 0, unit: '%' },
+      { key: 'right', label: 'Sağ', min: 0, max: 100, step: 0.5, def: 0, unit: '%' },
+      { key: 'bottom', label: 'Alt', min: 0, max: 100, step: 0.5, def: 0, unit: '%' },
+    ],
+    ffmpeg: (p, c) => {
+      const ev = (n: number) => Math.round(n / 2) * 2; // 4:2:0 needs even offsets/sizes
+      const l = ev((p.left / 100) * c.sw), t = ev((p.top / 100) * c.sh);
+      const w = Math.max(2, ev(c.sw - l - (p.right / 100) * c.sw)), h = Math.max(2, ev(c.sh - t - (p.bottom / 100) * c.sh));
+      return `format=yuva420p,crop=${w}:${h}:${l}:${t},pad=${c.sw}:${c.sh}:${l}:${t}:color=black@0`;
+    },
+  },
+  { id: 'hflip', name: 'Yatay çevir (ayna)', category: 'Kadraj', params: [], ffmpeg: () => 'hflip' },
+  { id: 'vflip', name: 'Dikey çevir', category: 'Kadraj', params: [], ffmpeg: () => 'vflip' },
   // --------------------------------------------------- blur & sharpen
   {
     id: 'blur', name: 'Gauss bulanıklığı', category: 'Bulanıklık ve netlik',

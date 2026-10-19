@@ -191,6 +191,7 @@ export function applyAttributes(mode: 'paste' | 'remove', on: Set<AttrId>, scale
         }
       }
       if (on.has('opacity') && c.stream === 'video') c.transform.opacity = src ? scaled(src.transform.opacity) : { value: 100, keyframes: [] };
+      if (on.has('opacity') && c.stream === 'video') { if (src?.blend) c.blend = src.blend; else delete c.blend; }
       if (on.has('effects') && c.stream === 'video') { if (src?.effects?.length) c.effects = json(src.effects).map((e) => ({ ...e, id: `fx_${Math.random().toString(36).slice(2, 9)}` })); else if (!src) delete c.effects; }
       if (on.has('color') && c.stream === 'video') { if (src?.color) c.color = json(src.color); else if (!src) delete c.color; }
       if (on.has('volume') && c.stream === 'audio') c.volumeDb = src ? scaled(src.volumeDb) : { value: 0, keyframes: [] };

@@ -55,6 +55,19 @@ export function applyEffects(c: HTMLCanvasElement, effects: ClipEffect[], L: num
         release(t);
         break;
       }
+      case 'crop': {
+        const l = (p.left / 100) * w, t = (p.top / 100) * h, r = (p.right / 100) * w, b = (p.bottom / 100) * h;
+        ctx.clearRect(0, 0, w, t); ctx.clearRect(0, h - b, w, b); ctx.clearRect(0, 0, l, h); ctx.clearRect(w - r, 0, r, h);
+        break;
+      }
+      case 'hflip': case 'vflip': {
+        const t = tmpCanvas(w, h);
+        const tc = ctx2(t); tc.clearRect(0, 0, w, h); tc.drawImage(c, 0, 0);
+        ctx.save(); ctx.clearRect(0, 0, w, h);
+        if (e.type === 'hflip') { ctx.translate(w, 0); ctx.scale(-1, 1); } else { ctx.translate(0, h); ctx.scale(1, -1); }
+        ctx.drawImage(t, 0, 0); ctx.restore(); release(t);
+        break;
+      }
       case 'mirror': {
         const t = tmpCanvas(w, h);
         ctx2(t).drawImage(c, 0, 0);

@@ -571,6 +571,33 @@ await page.click('.modes button:has-text("Kurgu")').catch(() => {});
   await shot(page, '20-anahtar-kare-seridi');
 }
 
+// ---- adjustment layer + blend mode
+{
+  await page.evaluate(() => { const k = window.__kurgu.store; k.setPlayhead(40); k.useStore.setState({ leftTab: 'project' }); });
+  await page.waitForSelector('select[title="Yeni öğe"]');
+  await page.selectOption('select[title="Yeni öğe"]', 'adjustment');
+  await page.waitForFunction(() => Object.values(window.__kurgu.store.useStore.getState().project.media).some((m) => m.synthetic?.type === 'adjustment'));
+  const adj = await page.evaluate(() => { const k = window.__kurgu.store; const id = k.useStore.getState().selection[0]; k.edit('bw', (s) => { s.clips[id].effects = [{ id: 'x', type: 'bw', enabled: true, params: { amount: 100 } }]; }); return id; });
+  await page.evaluate(() => window.__kurgu.store.setPlayhead(60));
+  await page.waitForTimeout(900);
+  const colorful = await page.evaluate(() => {
+    const c = document.querySelector('.viewer canvas');
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let col = 0, n = 0;
+    for (let i = 0; i < d.length; i += 40) { n++; if (Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]) > 30) col++; }
+    return col / n;
+  });
+  check('Ayar katmanı alttaki her şeyi etkiliyor (önizleme)', colorful < 0.05, `renkli oran ${colorful.toFixed(3)}`);
+  await shot(page, '23-ayar-katmani');
+  await page.evaluate((id) => window.__kurgu.store.edit('sil', (s) => { delete s.clips[id]; }), adj);
+  // blend mode select in Effect Controls
+  await page.evaluate(() => { const k = window.__kurgu.store; const s = k.committedSeq(); const c = Object.values(s.clips).find((x) => x.name === 'logo.png'); k.selectClips([c.id], false); k.setPlayhead(c.start + 10); k.useStore.setState({ leftTab: 'fx' }); });
+  await page.waitForSelector('.fx-row:has-text("Karışım modu") select');
+  await page.selectOption('.fx-row:has-text("Karışım modu") select', 'screen');
+  const bm = await page.evaluate(() => Object.values(window.__kurgu.store.committedSeq().clips).find((x) => x.name === 'logo.png').blend);
+  check('Karışım modu seçilebiliyor', bm === 'screen', String(bm));
+}
+
 // ---- Warp Stabilizer (background analysis + render)
 {
   const cid = await page.evaluate(() => {
