@@ -6,6 +6,7 @@ import { AnimatableParam, Clip, MediaItem, Project, Sequence, clipEnd, clipSrcSp
 import { EFFECT_BY_ID, TRANSITION_BY_ID, motionOf, transitionWindows } from './fx';
 import { IMPACT_BY_ID, impactFilters } from './impact';
 import { stabilizedSource } from './stabilize';
+import { maskImageFor } from './mask';
 import { AUDIO_TRANSITIONS, audioFxChain } from './audiofx';
 
 export type VideoCodec = 'h264' | 'hevc' | 'prores' | 'vp9' | 'gif' | 'none';
@@ -194,6 +195,7 @@ export function buildRenderPlan(
       if (c.color && c.color.vignette < 0) chain.push(`vignette=angle=${r6((Math.PI / 5) * Math.min(1, -c.color.vignette / 60))}:mode=forward`);
       const sw = m.width || W, sh = m.height || H;
       let blurfill: Record<string, number> | null = null;
+      let maskedFrom: string | null = null;
       for (const e of c.effects ?? []) {
         if (!e.enabled) continue;
         const def = EFFECT_BY_ID[e.type];
@@ -204,17 +206,33 @@ export function buildRenderPlan(
         if (fstr && fstr !== 'null') chain.push(fstr);
       }
       chain.push(`setpts=PTS+${r6(tBase)}/TB`);
+      // opacity masks: multiply the clip's alpha with the rasterised mask image
+      const maskPath = maskImageFor(c, sw, sh);
+      if (maskPath) {
+        args.push('-loop', '1', '-framerate', r6(fps), '-t', r6(lenOut + 2 / fps), '-i', maskPath);
+        const j = inputIndex++;
+        const [mk, mc, c1, c2, ca, am, mo] = ['mk', 'mc', 'mc', 'mc', 'ma', 'mm', 'mo'].map(lbl);
+        filters.push(`[${j}:v]format=gray,scale=${sw}:${sh},setpts=PTS-STARTPTS+${r6(tBase)}/TB[${mk}]`);
+        filters.push(`[${i}:v]${chain.join(',')},format=yuva420p[${mc}]`);
+        filters.push(`[${mc}]split[${c1}][${c2}]`);
+        filters.push(`[${c2}]alphaextract[${ca}]`);
+        filters.push(`[${ca}][${mk}]blend=all_mode=multiply:shortest=1[${am}]`);
+        filters.push(`[${c1}][${am}]alphamerge[${mo}]`);
+        chain.length = 0;
+        chain.push('null');
+        maskedFrom = mo;
+      }
       const src = lbl('src');
       const layers: { label: string; x: string; y: string; anim: boolean }[] = [];
       let fgIn = src;
       if (blurfill) {
         const bg = lbl('bg'), fg = lbl('fg');
-        filters.push(`[${i}:v]${chain.join(',')},split[${fg}][${bg}in]`);
+        filters.push(`[${maskedFrom ?? `${i}:v`}]${chain.join(',')},split[${fg}][${bg}in]`);
         filters.push(`[${bg}in]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=${r6((blurfill.blur / 100) * H)},eq=brightness=${r6(-(blurfill.dim / 100) * 0.5)},format=yuva420p[${bg}]`);
         layers.push({ label: bg, x: '0', y: '0', anim: false });
         fgIn = fg;
       } else {
-        filters.push(`[${i}:v]${chain.join(',')}[${src}]`);
+        filters.push(`[${maskedFrom ?? `${i}:v`}]${chain.join(',')}[${src}]`);
       }
       // scale / rotate / opacity, expressions in output time t; L = frame index inside the clip
       const tf = c.transform;

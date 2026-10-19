@@ -4,6 +4,7 @@ import * as ops from '../core/ops';
 import { I } from './icons';
 import { player } from './player';
 import { programMenu } from './menus';
+import { MaskOverlay } from './MaskUI';
 import { needsStabilize } from '../core/stabilize';
 import { stabStatus } from './stabilizer';
 import { activeSeq, committedSeq, edit, editProject, playbackPath, setPlayhead, setSeqField, useStore } from './store';
@@ -57,6 +58,7 @@ export function ProgramMonitor() {
           {safe && <SafeMargins w={seq.width} h={seq.height} />}
           {total === 0 && <div className="overlay-text">Proje panelinden klip sürükleyin veya içe aktarın</div>}
           <StabBanner />
+          <MaskOverlay canvas={canvasRef} />
         </div>
         <div className="scrubber" onMouseDown={(e) => { scrubTo(e); const el = e.currentTarget; const mv = (ev: MouseEvent) => scrubTo({ clientX: ev.clientX, currentTarget: el } as unknown as React.MouseEvent<HTMLDivElement>); const up = () => { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); }; window.addEventListener('mousemove', mv); window.addEventListener('mouseup', up); }}>
           {seq.inPoint !== null && seq.outPoint !== null && total > 0 && (

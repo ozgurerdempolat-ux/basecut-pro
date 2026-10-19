@@ -6,6 +6,7 @@ import { CaptionsPanel } from './Captions';
 import { ColorPanel } from './ColorPanel';
 import { AudioEffectStack, EffectStack, EffectsLibrary, TransitionControls } from './Effects';
 import { MixerPanel } from './Mixer';
+import { MaskControls } from './MaskUI';
 import { SyntheticKind, createSynthetic } from './synthetic';
 import { mediaMenu } from './menus';
 import { createTitle, updateTitle } from './titles';
@@ -216,6 +217,7 @@ export function EffectControls() {
               <select className="mini" value={clip.blend ?? 'normal'} onChange={(e) => edit('Karışım modu', (s) => { const v = e.target.value as BlendMode; if (v === 'normal') delete s.clips[clip.id].blend; else s.clips[clip.id].blend = v; })}>
                 {BLEND_MODES.map((b) => <option key={b.id} value={b.id}>{b.group ? `${b.name}` : b.name}</option>)}
               </select><span /></div>
+            <MaskControls clip={clip} />
           </Group>
         </>
       )}

@@ -11,6 +11,8 @@ import { isNeutral } from '../core/color';
 import { EFFECT_BY_ID, motionAt, transitionWindows } from '../core/fx';
 import { IMPACT_BY_ID } from '../core/impact';
 import { stabilizedSource } from '../core/stabilize';
+import { activeMasks } from '../core/mask';
+import { previewMask } from './masks';
 import { applyEffects, drawBlurFill, drawTransition, release, tmpCanvas } from './fxPreview';
 import { AUDIO_FX_BY_ID, AUDIO_TRANSITIONS, PreviewNode, fadeGain } from '../core/audiofx';
 
@@ -300,6 +302,22 @@ class Player {
       tc.drawImage(frameSrc, 0, 0, ew, eh);
       applyEffects(tmp, c.effects, local, (eh / h) * H);
       frameSrc = tmp;
+    }
+    if (c.masks?.length && activeMasks(c).length) {
+      // opacity masks: keep the frame only where the mask is (same raster as the export)
+      const k = Math.min(1, 1280 / Math.max(1, w));
+      const mw = Math.max(2, Math.round(w * k)), mh = Math.max(2, Math.round(h * k));
+      const mt = tmpCanvas(mw, mh);
+      const mc = mt.getContext('2d', { willReadFrequently: true })!;
+      mc.globalCompositeOperation = 'source-over';
+      mc.clearRect(0, 0, mw, mh);
+      mc.drawImage(frameSrc, 0, 0, mw, mh);
+      mc.globalCompositeOperation = 'destination-in';
+      mc.drawImage(previewMask(c.masks, iw, ih), 0, 0, mw, mh);
+      mc.globalCompositeOperation = 'source-over';
+      if (tmp) release(tmp);
+      tmp = mt;
+      frameSrc = mt;
     }
     ctx.save();
     ctx.globalAlpha = Math.max(0, Math.min(1, evalParam(t.opacity, local) / 100));

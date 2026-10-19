@@ -105,3 +105,26 @@ describe('adjustment layer', () => {
     expect(outWin[0] - outWin[2]).toBeGreaterThan(100); // still orange-red
   }, 60000);
 });
+
+describe('masks', () => {
+  it('export keeps the clip only inside the mask image', async () => {
+    const { maskKey, newMask } = await import('./mask');
+    const maskPng = join(dir, 'mask.png');
+    // white disc in the middle = keep
+    execFileSync(FFMPEG, ['-v', 'error', '-y', '-f', 'lavfi', '-i', "color=black:s=160x90,format=gray,geq=lum='if(lt(hypot(X-80,Y-45),30),255,0)'", '-frames:v', '1', maskPng]);
+    const out = render((s, t) => {
+      const m = newMask('ellipse', 'm1', 1);
+      s.clips[t].masks = [m];
+      s.clips[t].maskImage = { key: maskKey([m], 160, 90), path: maskPng };
+    }, 'mask');
+    const centre = px(out, 0.6, 80, 45), corner = px(out, 0.6, 10, 10);
+    expect(Math.abs(centre[2] - TOP[2])).toBeLessThanOrEqual(8);
+    expect(Math.abs(corner[0] - BASE[0])).toBeLessThanOrEqual(8);
+  }, 60000);
+  it('a stale mask image is not used', async () => {
+    const { maskImageFor, newMask } = await import('./mask');
+    const m = newMask('rect', 'r', 1);
+    const c = { masks: [m], maskImage: { key: 'old', path: '/x.png' } };
+    expect(maskImageFor(c, 100, 100)).toBeNull();
+  });
+});

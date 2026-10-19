@@ -150,6 +150,9 @@ export interface Clip {
   audioFx?: import('./audiofx').AudioEffect[];
   /** frame hold: the clip shows this source time (seconds) as a still, silent */
   freeze?: number;
+  /** opacity masks (core/mask.ts) and their rasterised alpha image */
+  masks?: import('./mask').Mask[];
+  maskImage?: { key: string; path: string };
   /** how the clip mixes with the tracks below (Opacity › Blend Mode) */
   blend?: BlendMode;
   /** finished Warp Stabilizer render for this clip (see core/stabilize.ts) */

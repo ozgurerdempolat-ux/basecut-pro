@@ -27,6 +27,8 @@ export interface State {
   selectedMedia: Id[];
   /** a transition picked in the timeline (by the clip it belongs to) */
   selTransition: Id | null;
+  /** mask being edited on the program monitor */
+  selMask: string | null;
   tool: Tool;
   mode: Mode;
   snap: boolean;
@@ -74,6 +76,7 @@ export const useStore = create<State>(() => ({
   selection: [],
   selectedMedia: [],
   selTransition: null,
+  selMask: null,
   tool: 'select',
   mode: 'edit',
   snap: true,

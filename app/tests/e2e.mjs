@@ -596,6 +596,22 @@ await page.click('.modes button:has-text("Kurgu")').catch(() => {});
   await page.selectOption('.fx-row:has-text("Karışım modu") select', 'screen');
   const bm = await page.evaluate(() => Object.values(window.__kurgu.store.committedSeq().clips).find((x) => x.name === 'logo.png').blend);
   check('Karışım modu seçilebiliyor', bm === 'screen', String(bm));
+  // mask: ellipse on the logo clip, overlay on the monitor, preview cut outside, export uses the same image
+  await page.selectOption('.fx-row:has-text("Karışım modu") select', 'normal');
+  await page.click('.mask-add button:has-text("Elips")');
+  await page.waitForSelector('.mask-overlay .mask-handle');
+  const nh = await page.$$eval('.mask-overlay .mask-handle', (x) => x.length);
+  // drag a corner handle outwards
+  const h0 = await page.$('.mask-overlay .mask-handle >> nth=2');
+  const hb = await h0.boundingBox();
+  await page.mouse.move(hb.x + 5, hb.y + 5); await page.mouse.down(); await page.mouse.move(hb.x + 25, hb.y + 15, { steps: 4 }); await page.mouse.up();
+  const pts = await page.evaluate(() => Object.values(window.__kurgu.store.committedSeq().clips).find((x) => x.name === 'logo.png').masks[0].pts);
+  check('Maske monitörde tutamaçla düzenleniyor', nh === 8 && pts[1][0] > 0.22, `${nh} tutamaç · ${JSON.stringify(pts)}`);
+  await page.waitForFunction(() => !!Object.values(window.__kurgu.store.committedSeq().clips).find((x) => x.name === 'logo.png').maskImage, null, { timeout: 10000 });
+  check('Maske görüntüsü dışa aktarım için hazırlandı', true);
+  await shot(page, '24-maske');
+  await page.evaluate(() => window.__kurgu.store.useStore.setState({ selMask: null }));
+
 }
 
 // ---- Warp Stabilizer (background analysis + render)

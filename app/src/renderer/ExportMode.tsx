@@ -6,6 +6,7 @@ import { I } from './icons';
 import { ProgramMonitor } from './Monitors';
 import { committedSeq, toast, useStore } from './store';
 import { prepareBurn } from './Captions';
+import { ensureMaskImages } from './masks';
 import { toSRT, fitted } from '../core/captions';
 
 interface Issue { level: 'ok' | 'warn' | 'err'; text: string; fix?: { label: string; run: () => void } }
@@ -94,6 +95,7 @@ export function ExportMode() {
   const run = async () => {
     const out = await window.kurgu.chooseExportPath(name || 'video', ext);
     if (!out) return;
+    await ensureMaskImages();
     const st = useStore.getState();
     const s2: ExportSettings = { ...settings, output: out };
     const rangeStart = settings.range === 'inout' ? seq.inPoint ?? 0 : 0;

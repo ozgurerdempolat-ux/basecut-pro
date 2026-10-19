@@ -17,3 +17,5 @@ import * as colorcore from '../core/color';
 // background Warp Stabilizer renders
 import { trackJobs } from './stabilizer';
 trackJobs();
+import { trackMasks } from './masks';
+trackMasks();
