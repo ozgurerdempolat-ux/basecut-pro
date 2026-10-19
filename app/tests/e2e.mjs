@@ -31,6 +31,10 @@ await page.waitForSelector('.timeline');
 await page.waitForTimeout(800);
 // dismiss recovery / info if shown
 await page.evaluate(() => window.__kurgu.store.useStore.setState({ dialog: null }));
+const homeShown = await page.waitForSelector('.home-card', { timeout: 5000 }).then(() => true).catch(() => false);
+await shot(page, '00-baslangic-ekrani');
+check('Başlangıç ekranı açılıyor', homeShown);
+await page.click('.home-skip');
 await shot(page, '01-bos-proje');
 
 // ---- import
@@ -687,6 +691,24 @@ await page.click('.modes button:has-text("Kurgu")').catch(() => {});
   await page.waitForFunction((m) => window.__kurgu.store.committedSeq().clips[m.id].volumeDb.value !== m.v, music, { timeout: 60000 });
   const matched = await page.evaluate((id) => window.__kurgu.store.committedSeq().clips[id].volumeDb.value, music.id);
   check('LUFS: sekans ölçüldü ve klip hedefe eşlendi', /-?\d+\.\d LUFS/.test(lufs), `${lufs} · müzik ${music.v} → ${matched} dB`);
+  // rubber band on the music clip: drag down, Ctrl+click adds a key
+  await page.evaluate(() => { document.querySelector('.tl-scroll').scrollLeft = 0; });
+  const sig = (id) => page.evaluate((cid) => { const p = window.__kurgu.store.committedSeq().clips[cid].volumeDb; return { v: p.value, n: p.keyframes.length, sum: p.keyframes.reduce((a, k) => a + k.value, 0) }; }, id);
+  const name = await page.evaluate((id) => window.__kurgu.store.committedSeq().clips[id].name, music.id);
+  let mEl = null;
+  for (const el of await page.$$('.lane.kind-audio .clip')) { const t = await el.getAttribute('title'); if (t && t.startsWith(name)) mEl = el; }
+  if (mEl) {
+    const s0 = await sig(music.id);
+    const lb = await (await mEl.$('.rubber-hit')).boundingBox();
+    const x = lb.x + Math.min(40, lb.width / 4);
+    // y of the line at x: probe around the hit path's bbox
+    const y = await page.evaluate(([px, top, h]) => { for (let yy = top; yy <= top + h; yy++) { const el = document.elementFromPoint(px, yy); if (el && el.classList.contains('rubber-hit')) return yy; } return top + h / 2; }, [x, lb.y, lb.height]);
+    await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y + 12, { steps: 3 }); await page.mouse.up();
+    const s1 = await sig(music.id);
+    await page.keyboard.down('Control'); await page.mouse.click(x + 25, y + 12); await page.keyboard.up('Control');
+    const s2 = await sig(music.id);
+    check('Ses çizgisi (rubber band) sürüklenip anahtar kare eklenebiliyor', (s1.v < s0.v || s1.sum < s0.sum) && s2.n === s1.n + 1, `${JSON.stringify(s0)} → ${JSON.stringify(s1)} → ${s2.n} anahtar`);
+  } else check('Ses çizgisi (rubber band) sürüklenip anahtar kare eklenebiliyor', false, 'klip bulunamadı');
   await shot(page, '18-ses-mikseri');
   // voice-over from the (fake) microphone
   const before = await page.evaluate(() => Object.keys(window.__kurgu.store.committedSeq().clips).length);

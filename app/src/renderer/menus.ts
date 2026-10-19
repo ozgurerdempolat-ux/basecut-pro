@@ -7,8 +7,9 @@ import * as ops from '../core/ops';
 import { runCommand } from './App';
 import { MenuItem, openMenu } from './ContextMenu';
 import { DEFAULT_AUDIO_TRANSITION, DEFAULT_TRANSITION, addTransition, removeTransition } from './Effects';
-import { committedSeq, edit, editProject, selectClips, setPlayhead, toast, useStore } from './store';
+import { committedSeq, edit, editProject, relinkOffline, selectClips, setPlayhead, toast, useStore } from './store';
 import { openNested } from './multicam';
+import { prefs } from './prefs';
 
 const LABEL_NAMES: [LabelColor, string][] = [
   ['violet', 'Menekşe'], ['iris', 'İris'], ['caribbean', 'Karayip'], ['lavender', 'Lavanta'], ['cerulean', 'Gök mavisi'], ['forest', 'Orman'],
@@ -135,7 +136,7 @@ export function mediaMenu(e: Ev, m: MediaItem, openInSource: () => void) {
         for (const id of sel) {
           const mm = media[id];
           if (!mm) continue;
-          const dur = mm.kind === 'image' ? 5 : mm.duration;
+          const dur = mm.kind === 'image' ? prefs().stillSec : mm.duration;
           ops.overwriteEdit(s, { media: mm, srcIn: mm.markIn ?? 0, srcOut: mm.markOut ?? dur }, at, mm.hasVideo ? t.video ?? s.tracks.find((x) => x.kind === 'video')!.id : null, mm.hasAudio ? t.audio ?? s.tracks.find((x) => x.kind === 'audio')!.id : null);
           at += Math.round(((mm.markOut ?? dur) - (mm.markIn ?? 0)) * s.fps);
         }
@@ -144,7 +145,8 @@ export function mediaMenu(e: Ev, m: MediaItem, openInSource: () => void) {
     { sep: true },
     { label: 'Yeniden Adlandır…', disabled: sel.length > 1, action: () => { const n = window.prompt('Ad', m.name); if (n && n.trim()) editProject('Yeniden adlandır', (p) => { p.media[m.id].name = n.trim(); }); } },
     { label: 'Etiket', submenu: LABEL_NAMES.map(([id, name]) => ({ label: name, checked: m.label === id, action: () => editProject('Etiket', (p) => { for (const x of sel) if (p.media[x]) p.media[x].label = id; }) })) },
-    { label: 'Klasörde Göster', action: () => window.kurgu.revealInFolder(m.path) },
+    { label: 'Klasörde Göster', action: () => window.kurgu.revealInFolder(m.path), disabled: !m.online },
+    ...(!m.online ? [{ label: 'Medyayı bağla… (klasör seç, otomatik bul)', action: () => void relinkOffline() } as MenuItem] : []),
     { sep: true },
     { label: used ? 'Projeden Kaldır (sekanslarda kullanılıyor)' : 'Projeden Kaldır', danger: true, disabled: used, action: () => editProject('Projeden kaldır', (p) => { for (const x of sel) delete p.media[x]; }) },
   ]);

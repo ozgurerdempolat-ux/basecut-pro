@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { KEY_COMMANDS, KeyCommand, comboOf, conflictsFor, keysFor, loadUserKeys, saveUserKeys } from './keymap';
 import { framesToTimecode, makeSequence } from '../core/model';
 import * as ops from '../core/ops';
-import { committedSeq, edit, editProject, loadProject, useStore } from './store';
+import { committedSeq, edit, editProject, loadProject, toast, useStore } from './store';
 import type { Clip, Project } from '../core/model';
 import { REFRAME_PRESETS } from '../core/reframe';
 import { reframeSequence } from './reframe';
+import { DEFAULT_PREFS, Prefs, loadPrefs, savePrefs } from './prefs';
 import { createMulticam } from './multicam';
 
 export function Modal({ title, children, onClose, footer }: { title: string; children: React.ReactNode; onClose: () => void; footer?: React.ReactNode }) {
@@ -30,6 +31,7 @@ export function Dialogs() {
   if (d.kind === 'shortcuts') return <ShortcutsDialog />;
   if (d.kind === 'about') return <AboutDialog />;
   if (d.kind === 'reframe') return <ReframeDialog />;
+  if (d.kind === 'prefs') return <PrefsDialog />;
   if (d.kind === 'multicam') return <MulticamDialog />;
   if (d.kind === 'attributes') return <AttributesDialog mode={d.data === 'remove' ? 'remove' : 'paste'} />;
   if (d.kind === 'recovery') return <RecoveryDialog data={d.data as { project: Project; savedAt: number }} />;
@@ -342,6 +344,49 @@ function MulticamDialog() {
         </label>
       ))}
       <div style={{ marginTop: 10, color: 'var(--text-3)', lineHeight: 1.5 }}>Sonra oynatırken 1–9 tuşlarıyla kameralar arasında kesme yaparsınız. Program monitöründeki ızgara görünümüne tıklayarak da seçebilirsiniz.</div>
+    </Modal>
+  );
+}
+
+// ------------------------------------------------------------------ preferences
+
+function PrefsDialog() {
+  const [p, setP] = useState<Prefs>(loadPrefs());
+  const [cache, setCache] = useState<{ path: string; bytes: number; files: number } | null>(null);
+  useEffect(() => { void window.kurgu.cacheInfo().then(setCache); }, []);
+  const set = <K extends keyof Prefs>(k: K, v: Prefs[K]) => { const n = { ...p, [k]: v }; setP(n); savePrefs(n); };
+  const num = (k: keyof Prefs, label: string, min: number, max: number, step: number, unit: string) => (
+    <div className="pref-row"><span>{label}</span>
+      <input type="number" min={min} max={max} step={step} value={p[k] as number} onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) set(k, Math.max(min, Math.min(max, v)) as never); }} onKeyDown={(e) => e.stopPropagation()} />
+      <span className="pref-unit">{unit}</span></div>
+  );
+  const mb = (b: number) => (b > 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`);
+  return (
+    <Modal title="Tercihler" onClose={close} footer={<><button className="btn" onClick={() => { setP(DEFAULT_PREFS); savePrefs(DEFAULT_PREFS); }}>Varsayılanlar</button><button className="btn primary" onClick={close}>Tamam</button></>}>
+      <div className="pref-sec">Genel</div>
+      {num('autosaveMin', 'Otomatik kayıt aralığı (0 = kapalı)', 0, 60, 1, 'dk')}
+      {num('autosaveKeep', 'Saklanacak otomatik kayıt', 1, 200, 1, 'adet')}
+      <div className="pref-row"><span>Otomatik kayıtlar</span><button className="btn small" onClick={() => void window.kurgu.openAutosaves()}>Klasörü aç</button><span /></div>
+      <div className="pref-sec">Kurgu</div>
+      {num('videoTransitionSec', 'Varsayılan video geçişi süresi', 0.1, 10, 0.1, 'sn')}
+      {num('audioTransitionSec', 'Varsayılan ses geçişi süresi', 0.1, 10, 0.1, 'sn')}
+      {num('stillSec', 'Fotoğraf / durağan görüntü süresi', 0.5, 60, 0.5, 'sn')}
+      <div className="pref-sec">Oynatma</div>
+      <div className="pref-row"><span>Varsayılan oynatma çözünürlüğü</span>
+        <select value={String(p.playbackRes)} onChange={(e) => set('playbackRes', (e.target.value === 'auto' ? 'auto' : Number(e.target.value)) as Prefs['playbackRes'])}>
+          <option value="auto">Bilgisayara göre (önerilen)</option><option value="1">Tam</option><option value="0.5">1/2</option><option value="0.25">1/4</option>
+        </select><span /></div>
+      <div className="pref-row"><span>Proxy (hafif kopya) kullanımı</span>
+        <select value={p.proxies} onChange={(e) => set('proxies', e.target.value as Prefs['proxies'])}>
+          <option value="auto">Gerektiğinde (önerilen)</option><option value="on">Her zaman</option><option value="off">Hiçbir zaman</option>
+        </select><span /></div>
+      <div className="pref-sec">Görünüm</div>
+      <div className="pref-row"><span>Arayüz boyutu</span>
+        <input type="range" min={70} max={160} step={5} value={p.uiScale} onChange={(e) => set('uiScale', Number(e.target.value))} /><span className="pref-unit">%{p.uiScale}</span></div>
+      <div className="pref-sec">Medya önbelleği</div>
+      <div className="pref-row"><span>Proxy, küçük resim, dalga formu, sabitleme…</span><b>{cache ? `${mb(cache.bytes)} · ${cache.files} dosya` : '…'}</b><span /></div>
+      <div className="pref-row"><span style={{ font: '10px var(--mono)', color: 'var(--text-3)', wordBreak: 'break-all' }}>{cache?.path}</span>
+        <button className="btn small" onClick={async () => { const freed = await window.kurgu.clearCache(true); toast(`${mb(freed)} boşaltıldı — gerekenler yeniden oluşturulacak`, 'success'); setCache(await window.kurgu.cacheInfo()); }}>Önbelleği temizle</button><span /></div>
     </Modal>
   );
 }

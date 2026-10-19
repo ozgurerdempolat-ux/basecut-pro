@@ -20,3 +20,5 @@ import { trackJobs } from './stabilizer';
 trackJobs();
 import { trackMasks } from './masks';
 trackMasks();
+import { applyPrefs } from './prefs';
+applyPrefs();

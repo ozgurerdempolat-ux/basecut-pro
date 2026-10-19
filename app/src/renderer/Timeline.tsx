@@ -7,7 +7,8 @@ import { clipMenu, laneMenu, trackMenu, transitionMenu } from './menus';
 import { openNested } from './multicam';
 import { stabilizedSource } from '../core/stabilize';
 import { MARKER_COLORS } from './Markers';
-import { hasRemap } from '../core/model';
+import { prefs } from './prefs';
+import { evalParam, hasRemap } from '../core/model';
 import { stabStatus } from './stabilizer';
 import { TRANSITION_BY_ID, transitionWindows } from '../core/fx';
 import { AUDIO_TRANSITIONS } from '../core/audiofx';
@@ -436,7 +437,7 @@ export function Timeline() {
         const m = media[id];
         if (!m) continue;
         const srcIn = range?.in ?? m.markIn ?? 0;
-        const srcOut = range?.out ?? m.markOut ?? (m.kind === 'image' ? 5 : m.duration);
+        const srcOut = range?.out ?? m.markOut ?? (m.kind === 'image' ? prefs().stillSec : m.duration);
         const fn = insert ? ops.insertEdit : ops.overwriteEdit;
         const created = fn(s, { media: m, srcIn, srcOut, video: !(target?.kind === 'audio' && e.shiftKey), audio: !(target?.kind === 'video' && e.shiftKey) }, at, v, a);
         at += s.clips[created[0]].duration;
@@ -746,7 +747,7 @@ const ClipView = memo(function ClipView({ clip, zoom, height, selected, tool, on
       {clip.stream === 'video' && (clip.effects ?? []).some((e) => e.type === 'warpstab' && e.enabled) && <StabBadge clip={clip} media={media} fps={fps} />}
       {stripStyle && <div className="strip" style={stripStyle} />}
       {clip.stream === 'audio' && assets?.peaks && <Wave clip={clip} zoom={zoom} height={height - 4} width={width} peaks={assets.peaks} pps={assets.peaksPerSecond ?? 50} fps={fps} />}
-      {clip.stream === 'audio' && <div className="rubber" style={{ top: `${Math.max(14, Math.min(height - 6, (height - 4) * (0.35 - clip.volumeDb.value / 60)))}px` }} />}
+      {clip.stream === 'audio' && <Rubber clip={clip} zoom={zoom} height={height} width={width} />}
       {showEdges && (
         <>
           <div className="edge in" style={{ cursor: edgeCursor }} onMouseDown={(e) => onMouseDown(e, clip, 'in')} />
@@ -797,5 +798,75 @@ function StabBadge({ clip, media, fps }: { clip: Clip; media: import('../core/mo
     <div className={`stab-badge ${st?.state === 'error' ? 'err' : 'run'}`} title="Warp Stabilizer">
       {st?.state === 'error' ? 'Sabitleme hatası' : st?.state === 'running' ? `Analiz %${Math.round(st.progress * 100)}` : 'Sabitleme sırada'}
     </div>
+  );
+}
+
+// -------------------------------------------------------------------- audio rubber band (volume keyframes)
+
+const DB_TOP = 15, DB_BOT = -60;
+const dbToY = (db: number, h: number) => 14 + (1 - (Math.max(DB_BOT, Math.min(DB_TOP, db)) - DB_BOT) / (DB_TOP - DB_BOT)) * Math.max(4, h - 20);
+const yToDb = (y: number, h: number) => Math.round((DB_BOT + (1 - (y - 14) / Math.max(4, h - 20)) * (DB_TOP - DB_BOT)) * 10) / 10;
+
+/** Premiere-style volume line on audio clips: drag to change, Ctrl+click adds a keyframe, drag keys, Alt+click deletes */
+function Rubber({ clip, zoom, height, width }: { clip: Clip; zoom: number; height: number; width: number }) {
+  const p = clip.volumeDb;
+  const keys = p.keyframes;
+  if (height < 26) return null;
+  const pts = keys.length ? keys.map((k) => [k.frame * zoom, dbToY(k.value, height)] as const) : [];
+  const line = keys.length
+    ? `M0,${dbToY(keys[0].value, height)} ${pts.map(([x, y]) => `L${x},${y}`).join(' ')} L${width},${dbToY(keys[keys.length - 1].value, height)}`
+    : `M0,${dbToY(p.value, height)} L${width},${dbToY(p.value, height)}`;
+  const box = (e: React.PointerEvent) => (e.currentTarget as SVGElement).ownerSVGElement?.getBoundingClientRect() ?? (e.currentTarget as SVGElement).getBoundingClientRect();
+  const lineDown = (e: React.PointerEvent) => {
+    e.stopPropagation(); e.preventDefault();
+    const r = box(e);
+    const x = e.clientX - r.left;
+    const f = Math.max(0, Math.min(clip.duration - 1, Math.round(x / zoom)));
+    if (e.ctrlKey || e.metaKey) {
+      edit('Ses anahtar karesi', (s) => { const c = s.clips[clip.id]; const v = evalParam(c.volumeDb, f); if (!c.volumeDb.keyframes.some((k) => k.frame === f)) { c.volumeDb.keyframes.push({ frame: f, value: v, ease: 'linear' }); c.volumeDb.keyframes.sort((a, b) => a.frame - b.frame); } });
+      return;
+    }
+    const y0 = e.clientY;
+    const start = JSON.parse(JSON.stringify(p)) as typeof p;
+    // dragging the line between two keys moves both (or the whole line when there are none)
+    const i = keys.findIndex((k) => k.frame > f);
+    const affected = keys.length ? (i <= 0 ? [i === 0 ? 0 : keys.length - 1] : [i - 1, i]) : [];
+    const mv = (ev: PointerEvent) => {
+      const dDb = yToDb(dbToY(0, height) + (ev.clientY - y0), height); // offset expressed in dB around 0
+      previewEdit((s) => {
+        const c = s.clips[clip.id];
+        if (!affected.length) c.volumeDb.value = Math.max(DB_BOT, Math.min(DB_TOP, Math.round((start.value + dDb) * 10) / 10));
+        else for (const k of affected) c.volumeDb.keyframes[k].value = Math.max(DB_BOT, Math.min(DB_TOP, Math.round((start.keyframes[k].value + dDb) * 10) / 10));
+      });
+      useStore.setState({ toolTip: `${(affected.length ? start.keyframes[affected[0]].value : start.value) + dDb > 0 ? '+' : ''}${((affected.length ? start.keyframes[affected[0]].value : start.value) + dDb).toFixed(1)} dB` });
+    };
+    const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); commitPreview('Ses seviyesi'); useStore.setState({ toolTip: null }); };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+  };
+  const keyDown = (e: React.PointerEvent, idx: number) => {
+    e.stopPropagation(); e.preventDefault();
+    if (e.altKey) { edit('Ses anahtar karesini sil', (s) => { const c = s.clips[clip.id]; const k = c.volumeDb.keyframes.splice(idx, 1)[0]; if (!c.volumeDb.keyframes.length) c.volumeDb.value = k.value; }); return; }
+    const x0 = e.clientX, y0 = e.clientY;
+    const k0 = keys[idx];
+    const mv = (ev: PointerEvent) => {
+      const nf = Math.max(0, Math.min(clip.duration - 1, k0.frame + Math.round((ev.clientX - x0) / zoom)));
+      const nv = yToDb(dbToY(k0.value, height) + (ev.clientY - y0), height);
+      previewEdit((s) => {
+        const c = s.clips[clip.id];
+        const ks = c.volumeDb.keyframes;
+        const lo = idx > 0 ? ks[idx - 1].frame + 1 : 0, hi = idx < ks.length - 1 ? ks[idx + 1].frame - 1 : clip.duration - 1;
+        ks[idx] = { ...ks[idx], frame: Math.max(lo, Math.min(hi, nf)), value: Math.max(DB_BOT, Math.min(DB_TOP, nv)) };
+      });
+      useStore.setState({ toolTip: `${nv > 0 ? '+' : ''}${nv.toFixed(1)} dB` });
+    };
+    const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); commitPreview('Ses anahtar karesi'); useStore.setState({ toolTip: null }); };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+  };
+  return (
+    <svg className="rubber-svg" width={width} height={height}>
+      <path d={line} className="rubber-hit" onPointerDown={lineDown}><title>{`Ses ${p.keyframes.length ? '(anahtar kareli)' : `${p.value > 0 ? '+' : ''}${p.value} dB`}\nSürükle: seviye · Ctrl+tık: anahtar kare`}</title></path>
+      <path d={line} className="rubber-line" />
+      {pts.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={3.5} className="rubber-key" onPointerDown={(e) => keyDown(e, i)}><title>Sürükle: taşı · Alt+tık: sil</title></circle>)}
+    </svg>
   );
 }
