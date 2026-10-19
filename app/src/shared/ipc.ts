@@ -76,6 +76,7 @@ export interface SystemInfo {
   /** a weak machine: we default to proxies and 1/2 playback resolution */
   lowSpec: boolean;
   hwEncoders: string[];
+  version: string;
 }
 
 /** API exposed to the renderer by the preload script */

@@ -866,6 +866,26 @@ if (existsSync(outFile)) {
   await shot(page, '29-egriler-ikincil');
 }
 
+// ---- shortcut editor
+{
+  await page.evaluate(() => window.__kurgu.store.useStore.setState({ dialog: { kind: 'shortcuts' }, tool: 'select' }));
+  await page.waitForSelector('.key-row');
+  await page.click('.key-row:has-text("Jilet") .key-cap');
+  await page.keyboard.press('g');
+  const cap = await page.$eval('.key-row:has-text("Jilet") .key-cap', (x) => x.textContent);
+  await page.click('.modal button:has-text("Kapat")');
+  await page.click('.tl-scroll', { position: { x: 5, y: 120 } });
+  await page.keyboard.press('g');
+  const t1 = await page.evaluate(() => window.__kurgu.store.useStore.getState().tool);
+  await page.keyboard.press('v');
+  await page.keyboard.press('c');
+  const t2 = await page.evaluate(() => window.__kurgu.store.useStore.getState().tool);
+  check('Kısayol değiştirilebiliyor (Jilet → G)', cap === 'G' && t1 === 'razor' && t2 === 'select', `${cap} · G→${t1} · C→${t2}`);
+  await page.evaluate(() => window.__kurgu.store.useStore.setState({ dialog: { kind: 'shortcuts' } }));
+  await page.click('.modal button:has-text("Varsayılanlara dön")');
+  await page.click('.modal button:has-text("Kapat")');
+}
+
 // ---- crash isolation: kill the worker mid-job and keep editing
 const pid = await app.evaluate(async ({ app }) => app.getAppMetrics().find((m) => m.type === 'Utility' && /Kurgu Media Worker|NodeService/.test(m.serviceName ?? m.name ?? ''))?.pid ?? null);
 if (pid) {

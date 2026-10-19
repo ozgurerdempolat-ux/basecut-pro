@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { KEY_COMMANDS, KeyCommand, comboOf, conflictsFor, keysFor, loadUserKeys, saveUserKeys } from './keymap';
 import { framesToTimecode, makeSequence } from '../core/model';
 import * as ops from '../core/ops';
 import { committedSeq, edit, editProject, loadProject, useStore } from './store';
@@ -131,20 +132,81 @@ export const SHORTCUTS: [string, string][] = [
 ];
 
 function ShortcutsDialog() {
+  const [q, setQ] = useState('');
+  const [capture, setCapture] = useState<string | null>(null);
+  const [pending, setPending] = useState<{ id: string; combo: string; others: KeyCommand[] } | null>(null);
+  const [, bump] = useState(0);
+  const user = loadUserKeys();
+  const assign = (id: string, combo: string, clearOthers: string[]) => {
+    const m = { ...loadUserKeys() };
+    for (const o of clearOthers) m[o] = '';
+    const def = KEY_COMMANDS.find((c) => c.id === id)!.keys;
+    if (combo === def) delete m[id]; else m[id] = combo;
+    saveUserKeys(m); bump((x) => x + 1);
+  };
+  useEffect(() => {
+    if (!capture) return;
+    const h = (e: KeyboardEvent) => {
+      e.preventDefault(); e.stopPropagation();
+      if (e.key === 'Escape') { setCapture(null); return; }
+      const combo = comboOf(e);
+      if (!combo) return;
+      const others = conflictsFor(capture, combo);
+      if (others.length) setPending({ id: capture, combo, others }); else assign(capture, combo, []);
+      setCapture(null);
+    };
+    window.addEventListener('keydown', h, true);
+    return () => window.removeEventListener('keydown', h, true);
+  }, [capture]);
+  const ql = q.toLocaleLowerCase('tr-TR');
+  const list = KEY_COMMANDS.filter((c) => !ql || c.label.toLocaleLowerCase('tr-TR').includes(ql) || keysFor(c.id).toLowerCase().includes(ql));
+  const groups = [...new Set(list.map((c) => c.group))];
   return (
-    <Modal title="Klavye Kısayolları" onClose={close} footer={<button className="btn primary" onClick={close}>Kapat</button>}>
-      <div style={{ color: 'var(--text-3)' }}>Profesyonel kurgu yazılımlarında alışık olduğunuz kısayollar.</div>
-      <div className="shortcut-grid">
-        {SHORTCUTS.map(([k, v]) => <div key={k}><span>{v}</span><span className="kbd">{k}</span></div>)}
+    <Modal title="Klavye Kısayolları" onClose={close} footer={<>
+      <button className="btn" disabled={!Object.keys(user).length} onClick={() => { saveUserKeys({}); bump((x) => x + 1); }}>Varsayılanlara dön</button>
+      <button className="btn primary" onClick={close}>Kapat</button></>}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+        <input className="search" style={{ flex: 1 }} placeholder="Komut veya tuş ara…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
+        <span style={{ color: 'var(--text-3)', fontSize: 11 }}>Değiştirmek için tuşa tıklayın</span>
+      </div>
+      {pending && (
+        <div className="key-conflict">
+          <b>{pending.combo}</b> şu an “{pending.others.map((o) => o.label).join(', ')}” için kullanılıyor.
+          <button className="btn small primary" onClick={() => { assign(pending.id, pending.combo, pending.others.map((o) => o.id)); setPending(null); }}>Yine de ata (onu boşalt)</button>
+          <button className="btn small" onClick={() => setPending(null)}>Vazgeç</button>
+        </div>
+      )}
+      <div className="key-list">
+        {groups.map((g) => (
+          <div key={g}>
+            <div className="key-group">{g}</div>
+            {list.filter((c) => c.group === g).map((c) => {
+              const k = keysFor(c.id);
+              const changed = user[c.id] !== undefined;
+              return (
+                <div key={c.id} className="key-row">
+                  <span>{c.label}</span>
+                  <button className={`key-cap ${capture === c.id ? 'cap' : ''} ${changed ? 'changed' : ''}`} onClick={() => setCapture(capture === c.id ? null : c.id)} title={changed ? `Varsayılan: ${c.keys}` : 'Tıklayın, sonra yeni tuşa basın'}>
+                    {capture === c.id ? 'Tuşa basın…' : k || '—'}
+                  </button>
+                  {changed ? <button className="icon-btn" title="Varsayılana dön" onClick={() => { const m = { ...loadUserKeys() }; delete m[c.id]; saveUserKeys(m); bump((x) => x + 1); }}>↺</button> : <span />}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+        <div className="key-group">Fare</div>
+        {SHORTCUTS.filter(([k]) => /sürükle|tekerlek/.test(k)).map(([k, v]) => <div key={k} className="key-row"><span>{v}</span><span className="kbd">{k}</span><span /></div>)}
       </div>
     </Modal>
   );
 }
 
 function AboutDialog() {
+  const sys = useStore((x) => x.sys);
   return (
     <Modal title="BaseCut Pro hakkında" onClose={close} footer={<button className="btn primary" onClick={close}>Kapat</button>}>
-      <div><b>BaseCut Pro</b> 0.1 — ücretsiz, hafif, profesyonel video kurgu. Özgür yazılım (GPL-3.0).</div>
+      <div><b>BaseCut Pro</b> {sys?.version ?? ''} — ücretsiz, hafif, profesyonel video kurgu. Özgür yazılım (GPL-3.0).</div>
       <div style={{ color: 'var(--text-2)' }}>The Base Social tarafından geliştirilmektedir. Video işleme FFmpeg (LGPL/GPL) ile yapılır.</div>
     </Modal>
   );

@@ -103,8 +103,8 @@ Duplicate detection highlighting,timeline,could,yes,no,
 Nested sequences (nest / open / reveal),timeline,must,yes,yes,
 Multiple sequences as tabs,timeline,must,yes,no,
 Work area bar,timeline,could,yes,no,
-Markers: add / edit / colors / duration / types,timeline,must,yes,partial,M
-Markers panel,timeline,should,yes,no,S27
+Markers: add / edit / colors / duration / types,timeline,must,yes,yes,M
+Markers panel,timeline,should,yes,yes,S27
 Match frame / reverse match frame,timeline,should,yes,yes,F
 Scene edit detection,timeline,should,yes,no,S33
 Selection tool,tools,must,yes,yes,V
@@ -268,8 +268,8 @@ Predefined workspaces (Editing / Color / Audio / Effects / Graphics / Captions /
 Save / reset custom workspaces,ui,must,yes,no,
 Dark UI with brightness slider,ui,should,yes,no,
 UI scaling for HiDPI,ui,must,yes,no,
-Keyboard shortcut editor with visual keyboard and conflict detection,ui,must,yes,no,S55
-Premiere-style keymap preset,ui,must,no,no,lowers switching cost; functional mapping only
+Keyboard shortcut editor with visual keyboard and conflict detection,ui,must,yes,yes,S55
+Premiere-style keymap preset,ui,must,no,yes,lowers switching cost; functional mapping only
 FCP7 / Avid keymap presets,ui,could,yes,no,
 Preferences (~20 tabs),ui,must,yes,no,S54
 Context menus on every object,ui,must,yes,yes,

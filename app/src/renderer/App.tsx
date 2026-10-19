@@ -3,6 +3,7 @@ import { Clip, clipEnd, sequenceDuration, sourceTimeAt } from '../core/model';
 import * as ops from '../core/ops';
 import { Dialogs } from './Dialogs';
 import { ContextMenuHost } from './ContextMenu';
+import { comboOf, eventFor, remap } from './keymap';
 import { flattenMulticam, nestSelection, switchAngle } from './multicam';
 import { ExportMode } from './ExportMode';
 import { I } from './icons';
@@ -65,7 +66,10 @@ export function App() {
       if (useStore.getState().dialog) return;
       // panels with their own Delete/Escape (e.g. the transcript) handle those keys themselves
       if (tgt?.closest?.('[data-keys="local"]') && ['Delete', 'Backspace', 'Escape'].includes(e.key)) return;
-      const handled = handleKey(e);
+      // user key map: replay the default key of the command the user put on this key
+      const r = remap(comboOf(e));
+      if (r.swallow) { e.preventDefault(); e.stopPropagation(); return; }
+      const handled = handleKey(r.replay ? (eventFor(r.replay, e.target) as unknown as KeyboardEvent) : e);
       if (handled) { e.preventDefault(); e.stopPropagation(); }
     };
     window.addEventListener('keydown', onKey, true);

@@ -6,6 +6,7 @@ import { FX_MIME, FxDrag, addAudioEffect, addEffect, addTransition, transitionTa
 import { clipMenu, laneMenu, trackMenu, transitionMenu } from './menus';
 import { openNested } from './multicam';
 import { stabilizedSource } from '../core/stabilize';
+import { MARKER_COLORS } from './Markers';
 import { hasRemap } from '../core/model';
 import { stabStatus } from './stabilizer';
 import { TRANSITION_BY_ID, transitionWindows } from '../core/fx';
@@ -639,7 +640,7 @@ function Ruler({ seq, zoom, width, scrollX, onScrub }: { seq: Sequence; zoom: nu
       if (isMajor) ctx.fillText(framesToTimecode(f, fps), x + 3, 10);
     }
   }, [seq.fps, zoom, width, scrollX]);
-  const markerColors: Record<string, string> = { green: '#3ccf91', red: '#ff5470', purple: '#a77bff', orange: '#ff9f43', yellow: '#ffd166', white: '#eee', blue: '#4b8cff', cyan: '#3ad1e6' };
+  const markerColors: Record<string, string> = MARKER_COLORS;
   return (
     <div className="tl-ruler" onMouseDown={(e) => { if (e.button === 0) onScrub(e); }}>
       <canvas ref={ref} />
@@ -647,12 +648,12 @@ function Ruler({ seq, zoom, width, scrollX, onScrub }: { seq: Sequence; zoom: nu
         <div className="inout" style={{ left: seq.inPoint * zoom, width: (seq.outPoint - seq.inPoint) * zoom }} />
       )}
       {seq.markers.map((m) => (
-        <div key={m.id} className="marker" title={m.name || 'Marker'} style={{ left: m.frame * zoom, background: markerColors[m.color] }}
-          onMouseDown={(e) => { e.stopPropagation(); setPlayhead(m.frame); }}
-          onDoubleClick={() => {
-            const name = window.prompt('Marker adı', m.name);
-            if (name !== null) edit('Marker düzenle', (s) => { const mk = s.markers.find((x) => x.id === m.id); if (mk) mk.name = name; });
-          }} />
+        <span key={m.id}>
+          {m.duration > 0 && <div className="marker-span" style={{ left: m.frame * zoom, width: m.duration * zoom, background: markerColors[m.color] }} />}
+          <div className="marker" title={`${m.name || 'İşaret'}${m.comment ? `\n${m.comment}` : ''}\nÇift tık: İşaretler paneli`} style={{ left: m.frame * zoom, background: markerColors[m.color] }}
+            onMouseDown={(e) => { e.stopPropagation(); setPlayhead(m.frame); }}
+            onDoubleClick={() => useStore.setState({ leftTab: 'markers' })} />
+        </span>
       ))}
     </div>
   );

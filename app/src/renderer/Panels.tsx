@@ -7,6 +7,7 @@ import { ColorPanel } from './ColorPanel';
 import { AudioEffectStack, EffectStack, EffectsLibrary, TransitionControls } from './Effects';
 import { MixerPanel } from './Mixer';
 import { TranscriptPanel } from './Transcript';
+import { MarkersPanel } from './Markers';
 import { MaskControls } from './MaskUI';
 import { SyntheticKind, createSynthetic } from './synthetic';
 import { mediaMenu } from './menus';
@@ -43,7 +44,7 @@ export function ProjectPanel() {
     if (el.offsetLeft < bar.scrollLeft) bar.scrollLeft = el.offsetLeft - 6;
     else if (el.offsetLeft + el.offsetWidth > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = el.offsetLeft + el.offsetWidth - bar.clientWidth + 6;
   }, [tab]);
-  const setTab = (t: 'project' | 'fx' | 'captions' | 'color' | 'effects' | 'mixer' | 'text') => useStore.setState({ leftTab: t });
+  const setTab = (t: 'project' | 'fx' | 'captions' | 'color' | 'effects' | 'mixer' | 'text' | 'markers') => useStore.setState({ leftTab: t });
   const items = useMemo(() => Object.values(media).filter((m) => m.name.toLowerCase().includes(q.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name)), [media, q]);
 
   const open = async () => {
@@ -77,9 +78,10 @@ export function ProjectPanel() {
         <div className={`tab ${tab === 'captions' ? 'on' : ''}`} onClick={() => setTab('captions')}>Altyazı</div>
         <div className={`tab ${tab === 'text' ? 'on' : ''}`} onClick={() => setTab('text')}>Metin</div>
         <div className={`tab ${tab === 'mixer' ? 'on' : ''}`} onClick={() => setTab('mixer')}>Mikser</div>
+        <div className={`tab ${tab === 'markers' ? 'on' : ''}`} onClick={() => setTab('markers')}>İşaretler</div>
         <div className="grow" />
       </div>
-      {tab === 'text' ? <TranscriptPanel /> : tab === 'mixer' ? <MixerPanel /> : tab === 'effects' ? <EffectsLibrary /> : tab === 'color' ? <ColorPanel /> : tab === 'captions' ? <CaptionsPanel /> : tab === 'fx' ? <EffectControls /> : (
+      {tab === 'markers' ? <MarkersPanel /> : tab === 'text' ? <TranscriptPanel /> : tab === 'mixer' ? <MixerPanel /> : tab === 'effects' ? <EffectsLibrary /> : tab === 'color' ? <ColorPanel /> : tab === 'captions' ? <CaptionsPanel /> : tab === 'fx' ? <EffectControls /> : (
         <>
           <div className="proj-toolbar">
             <input className="search" placeholder="Ara…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
