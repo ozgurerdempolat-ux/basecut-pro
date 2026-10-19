@@ -3,6 +3,7 @@ import { Clip, clipEnd, sequenceDuration, sourceTimeAt } from '../core/model';
 import * as ops from '../core/ops';
 import { Dialogs } from './Dialogs';
 import { ContextMenuHost } from './ContextMenu';
+import { flattenMulticam, switchAngle } from './multicam';
 import { ExportMode } from './ExportMode';
 import { I } from './icons';
 import { ProgramMonitor, SourceMonitor, sourceEdit } from './Monitors';
@@ -208,6 +209,9 @@ export function runCommand(c: string) {
     }
     case 'add-edit-all': edit('Tüm izlerde kes', (s) => { ops.razor(s, s.playhead); }); return;
     case 'auto-reframe': useStore.setState({ dialog: { kind: 'reframe' } }); return;
+    case 'create-multicam': if (st.selectedMedia.length < 2) toast('Proje panelinde en az iki kamera dosyası seçin', 'error'); else useStore.setState({ dialog: { kind: 'multicam' } }); return;
+    case 'flatten-multicam': flattenMulticam(); return;
+    case 'multicam-view': useStore.setState((s) => ({ multicamView: !s.multicamView })); return;
     case 'close-gaps': edit('Boşlukları kapat', (s) => ops.closeAllGaps(s)); return;
     case 'default-transition': applyDefaultTransition(); return;
     case 'default-audio-transition': applyDefaultAudioTransition(); return;
@@ -412,6 +416,10 @@ function handleKey(e: KeyboardEvent): boolean {
   if (!ctrl && e.shiftKey && k === 'e') { runCommand('toggle-enable'); return true; }
   if (!ctrl && !e.shiftKey && k === 'f') { runCommand('match-frame'); return true; }
   if (!ctrl && e.shiftKey && k === 'arrowdown') return false;
+
+  if (!ctrl && e.shiftKey && e.code === 'Digit0') { runCommand('multicam-view'); return true; }
+  // multicam: 1–9 pick the camera angle at the playhead
+  if (!ctrl && !e.altKey && !e.shiftKey && /^[1-9]$/.test(e.key) && switchAngle(Number(e.key) - 1)) return true;
 
   // tools
   if (!ctrl && !e.altKey && !e.shiftKey && TOOL_KEYS[k]) { useStore.setState({ tool: TOOL_KEYS[k] }); return true; }

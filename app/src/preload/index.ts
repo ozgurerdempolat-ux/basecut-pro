@@ -37,6 +37,7 @@ const api: KurguApi = {
   saveRecording: (name, data) => ipcRenderer.invoke('saveRecording', name, data),
   stabilize: (req) => ipcRenderer.invoke('stabilize', req),
   reframeAnalyze: (req) => ipcRenderer.invoke('reframeAnalyze', req),
+  audioEnvelope: (req) => ipcRenderer.invoke('audioEnvelope', req),
   micAccess: () => ipcRenderer.invoke('micAccess'),
   saveText: (name, ext, content) => ipcRenderer.invoke('saveText', name, ext, content),
   openText: (exts) => ipcRenderer.invoke('openText', exts),

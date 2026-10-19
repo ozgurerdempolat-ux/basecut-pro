@@ -128,10 +128,10 @@ Speed/Duration dialog with reverse and maintain pitch,speed,must,yes,yes,Ctrl+R
 Time interpolation: frame sampling / blending / optical flow,speed,should,yes,partial,
 Time remapping with speed ramps,speed,must,yes,yes,S30
 Freeze frame (frame hold / hold segment),speed,must,yes,yes,
-Multi-camera source sequence (sync by timecode/audio/in/marker),multicam,must,yes,no,F13
-Multi-camera live switching in monitor,multicam,must,yes,no,S20
-Up to 16 angles,multicam,should,yes,no,
-Flatten multicam,multicam,should,yes,no,
+Multi-camera source sequence (sync by timecode/audio/in/marker),multicam,must,yes,yes,F13
+Multi-camera live switching in monitor,multicam,must,yes,yes,S20
+Up to 16 angles,multicam,should,yes,yes,
+Flatten multicam,multicam,should,yes,yes,
 Effect Controls panel with intrinsic Motion/Opacity/Volume,effects,must,yes,yes,S36
 Keyframes with stopwatch per property,effects,must,yes,yes,
 Keyframe interpolation linear / bezier / auto / continuous / hold,effects,must,yes,yes,

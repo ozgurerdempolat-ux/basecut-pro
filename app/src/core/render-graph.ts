@@ -6,6 +6,7 @@ import { AnimatableParam, Clip, MediaItem, Project, Sequence, clipEnd, clipSrcSp
 import { EFFECT_BY_ID, TRANSITION_BY_ID, motionOf, transitionWindows } from './fx';
 import { IMPACT_BY_ID, impactFilters } from './impact';
 import { stabilizedSource } from './stabilize';
+import { expandMulticam } from './multicam';
 import { hasRemap, remapAdvance } from './model';
 import { maskImageFor } from './mask';
 import { AUDIO_TRANSITIONS, audioFxChain } from './audiofx';
@@ -110,6 +111,8 @@ export function buildRenderPlan(
   /** baked .cube file for a graded clip (the worker writes them) */
   lutFor: (c: Clip) => string | null = () => null,
 ): RenderPlan {
+  // multicam clips become the plain clips of their active angle
+  seq = expandMulticam(seq, project.sequences);
   const fps = settings.fps ?? seq.fps;
   const W = even(settings.width ?? (settings.height ? settings.height * seq.width / seq.height : seq.width));
   const H = even(settings.height ?? (settings.width ? settings.width * seq.height / seq.width : seq.height));

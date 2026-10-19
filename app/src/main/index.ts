@@ -247,6 +247,10 @@ function buildMenu() {
       { label: 'Varsayılan Ses Geçişini Uygula (sabit güç)', accelerator: 'CmdOrCtrl+Shift+D', click: cmd('default-audio-transition') },
       { label: 'Tüm Boşlukları Kapat', click: cmd('close-gaps') },
       { label: 'Otomatik Yeniden Kadrajla (9:16, 1:1, 4:5)…', click: cmd('auto-reframe') },
+      { type: 'separator' },
+      { label: 'Çoklu Kamera Kaynak Sekansı Oluştur…', click: cmd('create-multicam') },
+      { label: 'Çoklu Kamera Görünümü', accelerator: 'Shift+0', click: cmd('multicam-view') },
+      { label: 'Çoklu Kamerayı Düzleştir', click: cmd('flatten-multicam') },
       { label: 'Video İzi Ekle', click: cmd('add-video-track') },
       { label: 'Ses İzi Ekle', click: cmd('add-audio-track') },
     ] },
@@ -285,6 +289,7 @@ function registerIpc() {
   ipcMain.handle('probe', async (_e, paths: string[]) => Promise.all(paths.map((p) => ask('probe', p).promise.catch((err: Error) => ({ path: p, error: err.message })))));
   ipcMain.handle('assets', (_e, path: string) => ask('assets', path).promise);
   ipcMain.handle('stabilize', (_e, req: StabilizeRequest) => ask<string>('stabilize', req, { kind: 'stabilize', label: req.label }).promise);
+  ipcMain.handle('audioEnvelope', (_e, req: { label: string }) => ask('envelope', req, { kind: 'analyze', label: req.label }).promise);
   ipcMain.handle('reframeAnalyze', (_e, req: { label: string }) => ask('reframe', req, { kind: 'analyze', label: req.label }).promise);
   ipcMain.handle('makeProxy', (_e, path: string) => ask('proxy', path, { kind: 'proxy', label: `Proxy: ${path.split(/[\\/]/).pop()}` }).promise);
   ipcMain.handle('exportSequence', (_e, req: ExportRequest) => {

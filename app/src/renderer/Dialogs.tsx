@@ -5,6 +5,7 @@ import { committedSeq, edit, editProject, loadProject, useStore } from './store'
 import type { Clip, Project } from '../core/model';
 import { REFRAME_PRESETS } from '../core/reframe';
 import { reframeSequence } from './reframe';
+import { createMulticam } from './multicam';
 
 export function Modal({ title, children, onClose, footer }: { title: string; children: React.ReactNode; onClose: () => void; footer?: React.ReactNode }) {
   return (
@@ -28,6 +29,7 @@ export function Dialogs() {
   if (d.kind === 'shortcuts') return <ShortcutsDialog />;
   if (d.kind === 'about') return <AboutDialog />;
   if (d.kind === 'reframe') return <ReframeDialog />;
+  if (d.kind === 'multicam') return <MulticamDialog />;
   if (d.kind === 'attributes') return <AttributesDialog mode={d.data === 'remove' ? 'remove' : 'paste'} />;
   if (d.kind === 'recovery') return <RecoveryDialog data={d.data as { project: Project; savedAt: number }} />;
   return null;
@@ -256,6 +258,28 @@ function ReframeDialog() {
           <option value={0.5}>Varsayılan</option>
           <option value={0.9}>Hızlı (spor, aksiyon)</option>
         </select></div>
+    </Modal>
+  );
+}
+
+// ------------------------------------------------------------------ multicam
+
+function MulticamDialog() {
+  const st = useStore.getState();
+  const items = st.selectedMedia.map((id) => st.project.media[id]).filter(Boolean);
+  const [sync, setSync] = useState<'audio' | 'in' | 'start'>('audio');
+  const [busy, setBusy] = useState(false);
+  const go = async () => { setBusy(true); try { await createMulticam(items.map((m) => m.id), sync); close(); } finally { setBusy(false); } };
+  return (
+    <Modal title="Çoklu Kamera Kaynak Sekansı" onClose={() => !busy && close()}
+      footer={<><button className="btn" disabled={busy} onClick={close}>Vazgeç</button><button className="btn primary" disabled={busy || items.length < 2} onClick={() => void go()}>{busy ? 'Senkronlanıyor…' : 'Oluştur'}</button></>}>
+      <div style={{ marginBottom: 8, color: 'var(--text-2)' }}>{items.length} kamera: {items.map((m) => m.name).join(', ')}</div>
+      {([['audio', 'Ses dalga formuna göre (önerilen) — kameralar aynı anda farklı zamanlarda başlatıldıysa'], ['in', 'Giriş noktalarına göre — her kaynakta aynı anı Giriş (I) ile işaretlediyseniz'], ['start', 'Başlangıçlarına göre — hepsi aynı anda kaydetmeye başladıysa']] as const).map(([id, label]) => (
+        <label key={id} className="check" style={{ display: 'flex', margin: '6px 0', alignItems: 'flex-start' }}>
+          <input type="radio" name="mcs" checked={sync === id} onChange={() => setSync(id)} /> {label}
+        </label>
+      ))}
+      <div style={{ marginTop: 10, color: 'var(--text-3)', lineHeight: 1.5 }}>Sonra oynatırken 1–9 tuşlarıyla kameralar arasında kesme yaparsınız. Program monitöründeki ızgara görünümüne tıklayarak da seçebilirsiniz.</div>
     </Modal>
   );
 }

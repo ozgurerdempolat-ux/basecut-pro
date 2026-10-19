@@ -5,6 +5,7 @@ import { I } from './icons';
 import { player } from './player';
 import { programMenu } from './menus';
 import { MaskOverlay } from './MaskUI';
+import { switchAngle } from './multicam';
 import { needsStabilize } from '../core/stabilize';
 import { stabStatus } from './stabilizer';
 import { activeSeq, committedSeq, edit, editProject, playbackPath, setPlayhead, setSeqField, useStore } from './store';
@@ -39,6 +40,7 @@ export function ProgramMonitor() {
   return (
     <div className={`panel ${focused ? 'focused' : ''}`} onMouseDown={() => useStore.setState({ focus: 'program' })}>
       <div className="panel-tabs"><div className="tab on">Program: {seq.name}</div><div className="grow" />
+        {Object.values(seq.clips).some((c) => c.mc) && <button className={`btn small ${useStore.getState().multicamView ? 'on' : ''}`} style={{ marginRight: 6 }} title="Çoklu kamera görünümü (Shift+0)" onClick={() => useStore.setState((x) => ({ multicamView: !x.multicamView }))}>⊞ Çoklu kamera</button>}
         {playing && fpsShown > 0 && fpsShown < seq.fps * 0.8 && <span className="pill warn" title="Bu bilgisayar tam hızda oynatamıyor. Oynatma çözünürlüğünü düşürün veya proxy kullanın.">düşen kare</span>}
       </div>
       <div className="monitor">
@@ -59,6 +61,7 @@ export function ProgramMonitor() {
           {total === 0 && <div className="overlay-text">Proje panelinden klip sürükleyin veya içe aktarın</div>}
           <StabBanner />
           <MaskOverlay canvas={canvasRef} />
+          <MulticamGrid />
         </div>
         <div className="scrubber" onMouseDown={(e) => { scrubTo(e); const el = e.currentTarget; const mv = (ev: MouseEvent) => scrubTo({ clientX: ev.clientX, currentTarget: el } as unknown as React.MouseEvent<HTMLDivElement>); const up = () => { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); }; window.addEventListener('mousemove', mv); window.addEventListener('mouseup', up); }}>
           {seq.inPoint !== null && seq.outPoint !== null && total > 0 && (
@@ -254,6 +257,50 @@ function StabBanner() {
   return (
     <div className={`stab-banner ${st?.state === 'error' ? 'err' : ''}`}>
       {st?.state === 'error' ? `Sabitleme başarısız: ${st.error}` : st?.state === 'running' ? `Warp Stabilizer: arka planda analiz ediliyor (%${Math.round(st.progress * 100)}) — kurguya devam edebilirsiniz` : 'Warp Stabilizer: sırada'}
+    </div>
+  );
+}
+
+/** Premiere-style multicam monitor: every angle live, the active one framed in red; click (or 1–9) to cut */
+function MulticamGrid() {
+  const on = useStore((s) => s.multicamView);
+  const seq = useStore((s) => activeSeq(s));
+  const playing = useStore((s) => s.playing);
+  const project = useStore((s) => s.project);
+  useStore((s) => s.proxies);
+  const refs = useRef<(HTMLVideoElement | null)[]>([]);
+  const c = Object.values(seq.clips).find((x) => x.mc && x.stream === 'video' && seq.playhead >= x.start && seq.playhead < x.start + x.duration)
+    ?? Object.values(seq.clips).find((x) => x.mc && x.stream === 'video');
+  const src = c?.mc ? project.sequences[c.mc.seqId] : undefined;
+  const angles = src?.multicam?.angles ?? [];
+  // source-sequence frame under the playhead
+  const srcFrame = c && src ? (c.srcIn + (seq.playhead - c.start) / seq.fps) * src.fps : 0;
+  const cells = angles.map((a) => {
+    const track = src!.tracks.filter((t) => t.kind === 'video')[a.track];
+    const x = Object.values(src!.clips).find((y) => y.trackId === track?.id && y.stream === 'video' && srcFrame >= y.start && srcFrame < y.start + y.duration);
+    const m = x ? project.media[x.mediaId] : undefined;
+    const path = m ? playbackPath(m) : null;
+    const t = x ? x.srcIn + (srcFrame - x.start) / src!.fps : 0;
+    return { a, path, t };
+  });
+  useEffect(() => {
+    cells.forEach((cell, i) => {
+      const v = refs.current[i];
+      if (!v || !cell.path) return;
+      if (playing) { if (v.paused) { v.currentTime = cell.t; void v.play().catch(() => {}); } else if (Math.abs(v.currentTime - cell.t) > 0.25) v.currentTime = cell.t; }
+      else { if (!v.paused) v.pause(); if (Math.abs(v.currentTime - cell.t) > 0.04) v.currentTime = cell.t; }
+    });
+  });
+  if (!on || !c || !src || !angles.length) return null;
+  const cols = Math.ceil(Math.sqrt(angles.length));
+  return (
+    <div className="mc-grid" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }} onMouseDown={(e) => e.stopPropagation()}>
+      {cells.map((cell, i) => (
+        <div key={i} className={`mc-cell ${c.mc!.angle === i ? 'on' : ''}`} onClick={() => switchAngle(i)} title={`${cell.a.name} (${i + 1})`}>
+          {cell.path ? <video ref={(el) => { refs.current[i] = el; }} src={window.kurgu.mediaUrl(cell.path)} muted playsInline preload="auto" /> : <div className="mc-empty">Bu anda kayıt yok</div>}
+          <span className="mc-label">{i + 1} · {cell.a.name}</span>
+        </div>
+      ))}
     </div>
   );
 }

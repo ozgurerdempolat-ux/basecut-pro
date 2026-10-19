@@ -784,6 +784,37 @@ if (existsSync(outFile)) {
   await shot(page, '26-otomatik-kadraj-9x16');
 }
 
+// ---- multicam
+{
+  const ids = await page.evaluate(() => {
+    const k = window.__kurgu.store; const st = k.useStore.getState();
+    const ms = Object.values(st.project.media).filter((m) => m.name.startsWith('kamera-')).map((m) => m.id);
+    k.useStore.setState({ mode: 'edit', selectedMedia: ms, dialog: { kind: 'multicam' } });
+    k.setPlayhead(k.committedSeq().clips ? Math.max(...Object.values(k.committedSeq().clips).map((c) => c.start + c.duration)) : 0);
+    return ms;
+  });
+  await page.waitForSelector('.modal:has-text("Çoklu Kamera")');
+  await page.click('.modal input[type=radio] >> nth=2');
+  await page.click('.modal button:has-text("Oluştur")');
+  await page.waitForSelector('.mc-grid .mc-cell', { timeout: 20000 });
+  const cells = await page.$$eval('.mc-cell', (x) => x.length);
+  await page.evaluate(() => { const k = window.__kurgu.store; const c = Object.values(k.committedSeq().clips).find((x) => x.mc && x.stream === 'video'); k.setPlayhead(c.start + 10); });
+  await page.waitForTimeout(500);
+  await shot(page, '28-coklu-kamera');
+  await page.click('.tl-scroll', { position: { x: 5, y: 120 } });
+  await page.keyboard.press('2');
+  const angle = await page.evaluate(() => Object.values(window.__kurgu.store.committedSeq().clips).find((x) => x.mc && x.stream === 'video').mc.angle);
+  check('Çoklu kamera: ızgara ve 1–9 ile açı değiştirme', ids.length === 2 && cells === 2 && angle === 1, `${cells} hücre · açı ${angle}`);
+  // live cut while playing
+  await page.evaluate(() => window.__kurgu.player.play(1));
+  await page.waitForTimeout(700);
+  await page.keyboard.press('1');
+  await page.evaluate(() => window.__kurgu.player.pause());
+  const segs = await page.evaluate(() => Object.values(window.__kurgu.store.committedSeq().clips).filter((x) => x.mc && x.stream === 'video').map((x) => x.mc.angle).sort().join(','));
+  check('Oynatırken tuşla canlı kesme', segs === '0,1', segs);
+  await page.evaluate(() => window.__kurgu.store.useStore.setState({ multicamView: false }));
+}
+
 // ---- crash isolation: kill the worker mid-job and keep editing
 const pid = await app.evaluate(async ({ app }) => app.getAppMetrics().find((m) => m.type === 'Utility' && /Kurgu Media Worker|NodeService/.test(m.serviceName ?? m.name ?? ''))?.pid ?? null);
 if (pid) {

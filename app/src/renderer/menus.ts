@@ -124,6 +124,7 @@ export function mediaMenu(e: Ev, m: MediaItem, openInSource: () => void) {
   const used = Object.values(st.project.sequences).some((s) => Object.values(s.clips).some((c) => sel.includes(c.mediaId)));
   openMenu(e, [
     { label: 'Kaynak Monitörde Aç', action: openInSource },
+    ...(sel.length >= 2 ? [{ label: `Çoklu kamera kaynak sekansı oluştur (${sel.length} açı)…`, action: () => useStore.setState({ dialog: { kind: 'multicam' } }) } as MenuItem] : []),
     { label: 'Sekansa Ekle (oynatma kafasına)', action: () => {
       edit('Sekansa ekle', (s, media) => {
         const t = ops.targetTracks(s);

@@ -29,6 +29,8 @@ export interface State {
   selTransition: Id | null;
   /** mask being edited on the program monitor */
   selMask: string | null;
+  /** program monitor shows the multicam angle grid */
+  multicamView: boolean;
   tool: Tool;
   mode: Mode;
   snap: boolean;
@@ -55,7 +57,7 @@ export interface State {
   toasts: Toast[];
   sys: SystemInfo | null;
   clipboard: Clip[] | null;
-  dialog: null | { kind: 'speed' | 'sequence' | 'shortcuts' | 'about' | 'recovery' | 'attributes' | 'reframe'; data?: unknown };
+  dialog: null | { kind: 'speed' | 'sequence' | 'shortcuts' | 'about' | 'recovery' | 'attributes' | 'reframe' | 'multicam'; data?: unknown };
 }
 
 const initialProject = (() => {
@@ -77,6 +79,7 @@ export const useStore = create<State>(() => ({
   selectedMedia: [],
   selTransition: null,
   selMask: null,
+  multicamView: false,
   tool: 'select',
   mode: 'edit',
   snap: true,
@@ -280,6 +283,7 @@ export async function importPaths(paths: string[], opts: { createSequence?: bool
 }
 
 export async function loadAssets(m: MediaItem) {
+  if (!m.path || m.synthetic?.type === 'multicam') return; // nothing on disk to analyse
   try {
     const a = await window.kurgu.assets(m.path);
     set((s) => ({ assets: { ...s.assets, [m.path]: a } }));

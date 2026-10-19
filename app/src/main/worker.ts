@@ -158,6 +158,18 @@ async function proxy(path: string, jobId: string): Promise<string> {
   return out;
 }
 
+// ------------------------------------------------------------------ audio envelope (multicam sync)
+
+async function envelope(req: { path: string; rate: number; maxSec: number }, jobId: string): Promise<number[]> {
+  const sr = 8000, hop = Math.round(sr / req.rate);
+  const raw = await run(FFMPEG, ['-v', 'error', '-nostdin', '-t', String(req.maxSec), '-i', req.path, '-vn', '-ac', '1', '-ar', String(sr), '-f', 'f32le', '-'], { jobId });
+  const f = new Float32Array(raw.buffer, raw.byteOffset, Math.floor(raw.length / 4));
+  const out: number[] = [];
+  for (let i = 0; i + hop <= f.length; i += hop) { let s = 0; for (let j = i; j < i + hop; j++) s += f[j] * f[j]; out.push(Math.sqrt(s / hop)); }
+  send({ id: jobId, progress: 1 });
+  return out;
+}
+
 // ------------------------------------------------------------------ auto reframe
 
 async function reframe(req: { path: string; range: [number, number]; perSecond: number; width: number; height: number }, jobId: string): Promise<ReframeSample[]> {
@@ -291,6 +303,7 @@ port.on('message', async ({ data }) => {
       case 'assets': result = await assets(payload as string); break;
       case 'proxy': result = await proxy(payload as string, id); break;
       case 'stabilize': result = await stabilize(payload as StabilizeRequest, id); break;
+      case 'envelope': result = await envelope(payload as { path: string; rate: number; maxSec: number }, id); break;
       case 'reframe': result = await reframe(payload as { path: string; range: [number, number]; perSecond: number; width: number; height: number }, id); break;
       case 'export': result = await exportSeq(payload as ExportRequest, id); break;
       case 'frame': result = await frame(payload as { path: string; time: number; out: string }); break;
