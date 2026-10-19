@@ -715,6 +715,45 @@ if (existsSync(outFile)) {
   }
 }
 
+// ---- text-based editing (transcript injected: speech recognition needs the model download)
+{
+  const before = await page.evaluate(() => {
+    const k = window.__kurgu.store;
+    const words = 'Merhaba arkadaşlar ııı bugün size yeni editörümüzü eee anlatacağım çok hızlı ve ücretsiz'.split(' ');
+    k.edit('test transkript', (s) => {
+      let f = 15;
+      s.transcript = { language: 'tr', words: words.map((t, i) => { const w = { text: t, start: f, end: f + 12 }; f += i === 4 ? 70 : 16; return w; }) };
+    });
+    k.useStore.setState({ leftTab: 'text', mode: 'edit' });
+    const s = k.committedSeq();
+    return Math.max(...Object.values(s.clips).map((c) => c.start + c.duration));
+  });
+  await page.waitForSelector('.tr-w');
+  const nWords = await page.$$eval('.tr-w', (x) => x.length);
+  // select "yeni editörümüzü" by dragging and press Delete
+  const w1 = await page.$('.tr-w[data-w="6"]'), w2 = await page.$('.tr-w[data-w="7"]');
+  const b1 = await w1.boundingBox(), b2 = await w2.boundingBox();
+  await page.mouse.move(b1.x + 3, b1.y + 5); await page.mouse.down(); await page.mouse.move(b2.x + 5, b2.y + 5, { steps: 3 }); await page.mouse.up();
+  const selTxt = await page.$eval('.tr-sel', (x) => x.textContent).catch(() => '');
+  await page.keyboard.press('Delete');
+  await page.waitForTimeout(200);
+  const after1 = await page.evaluate(() => { const s = window.__kurgu.store.committedSeq(); return { end: Math.max(...Object.values(s.clips).map((c) => c.start + c.duration)), words: s.transcript.words.map((w) => w.text).join(' ') }; });
+  check('Metinden kelime silmek videoyu da kesiyor', nWords === 13 && selTxt.includes('2 kelime') && after1.end < before && !after1.words.includes('editörümüzü'), `${before} → ${after1.end} · ${after1.words}`);
+  // fillers
+  await page.click('.tr-bar button:has-text("Dolgu sesleri")');
+  await page.waitForSelector('.tr-w.filler');
+  await shot(page, '25-metinle-kurgu');
+  await page.click('.tr-tool button:has-text("Kaldır")');
+  const after2 = await page.evaluate(() => window.__kurgu.store.committedSeq().transcript.words.map((w) => w.text).join(' '));
+  check('Dolgu sesleri tek tıkla temizlendi', !/ııı|eee/.test(after2), after2);
+  // pauses
+  await page.click('.tr-bar button:has-text("Duraklamalar")');
+  const info = await page.$eval('.tr-tool-foot span', (x) => x.textContent);
+  await page.click('.tr-tool button:has-text("Kaldır")');
+  const gaps = await page.evaluate(() => { const w = window.__kurgu.store.committedSeq().transcript.words; let mx = 0; for (let i = 1; i < w.length; i++) mx = Math.max(mx, w[i].start - w[i - 1].end); return mx; });
+  check('Uzun duraklamalar kaldırıldı', gaps < 30, `${info} · en uzun boşluk ${gaps} kare`);
+}
+
 // ---- crash isolation: kill the worker mid-job and keep editing
 const pid = await app.evaluate(async ({ app }) => app.getAppMetrics().find((m) => m.type === 'Utility' && /Kurgu Media Worker|NodeService/.test(m.serviceName ?? m.name ?? ''))?.pid ?? null);
 if (pid) {

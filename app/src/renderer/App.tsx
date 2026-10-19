@@ -62,6 +62,8 @@ export function App() {
       const tgt = e.target as HTMLElement;
       if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'SELECT' || tgt.tagName === 'TEXTAREA')) return;
       if (useStore.getState().dialog) return;
+      // panels with their own Delete/Escape (e.g. the transcript) handle those keys themselves
+      if (tgt?.closest?.('[data-keys="local"]') && ['Delete', 'Backspace', 'Escape'].includes(e.key)) return;
       const handled = handleKey(e);
       if (handled) { e.preventDefault(); e.stopPropagation(); }
     };

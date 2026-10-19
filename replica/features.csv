@@ -184,9 +184,9 @@ Text panel: Graphics tab layer list,graphics,should,yes,no,
 Font browser with system fonts and favorites,graphics,must,yes,no,
 Speech-to-text transcription (multi-language incl. Turkish),ai,must,yes,yes,F05
 Speaker detection and labels,ai,should,yes,no,
-Text-based editing: delete / extract / insert from transcript,ai,must,yes,no,
-Remove pauses and filler words in transcript,ai,must,yes,no,
-Transcript search,ai,must,yes,no,
+Text-based editing: delete / extract / insert from transcript,ai,must,yes,yes,
+Remove pauses and filler words in transcript,ai,must,yes,yes,
+Transcript search,ai,must,yes,yes,
 Create captions from transcript,captions,must,yes,yes,F06
 Caption tracks (subtitle / CEA-608 / CEA-708 / open),captions,should,yes,no,
 Caption style editing and saved styles,captions,must,partial,yes,broken in 25.0 per source #14

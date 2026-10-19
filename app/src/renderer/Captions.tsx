@@ -50,7 +50,7 @@ function setJob(id: string, label: string, progress: number, done = false, error
   if (done) setTimeout(() => useStore.setState((s) => { const n = { ...s.jobs }; delete n[id]; return { jobs: n }; }), 3000);
 }
 
-export async function autoCaption(opts: { model: string; language: string; trackIds: string[] }) {
+export async function autoCaption(opts: { model: string; language: string; trackIds: string[]; captions?: boolean }) {
   const st = useStore.getState();
   const seq = committedSeq(st);
   if (!opts.trackIds.length) { toast('Altyazı için en az bir ses izi seçin', 'error'); return; }
@@ -79,7 +79,15 @@ export async function autoCaption(opts: { model: string; language: string; track
     if (!words.length) { setJob(jobId, 'Altyazı', 1, true, 'Konuşma bulunamadı'); toast('Seçili izlerde konuşma bulunamadı', 'error'); return; }
     const fps = seq.fps;
     const frameWords: CaptionWord[] = words.map((w) => ({ text: w.text, start: Math.round(w.start * fps), end: Math.max(Math.round(w.end * fps), Math.round(w.start * fps) + 1) }));
+    const lang = opts.language === 'auto' ? 'tr' : opts.language;
+    if (opts.captions === false) {
+      edit('Transkript', (s) => { s.transcript = { language: lang, words: frameWords }; });
+      setJob(jobId, 'Transkript hazır', 1, true);
+      toast(`${words.length} kelimelik transkript hazır`, 'success');
+      return;
+    }
     edit('Otomatik altyazı', (s) => {
+      s.transcript = { language: lang, words: frameWords };
       const track = s.captions ?? emptyCaptions(opts.language === 'auto' ? 'tr' : opts.language);
       track.language = opts.language;
       track.items = groupWords(frameWords, fitted(track.style, s.width, s.height), fps);

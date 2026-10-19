@@ -184,6 +184,8 @@ export interface Sequence {
   binId: Id | null;
   /** caption track (automatic or imported subtitles) */
   captions?: import('./captions').CaptionTrackData;
+  /** speech transcript in sequence frames (text-based editing) */
+  transcript?: { language: string; words: import('./captions').CaptionWord[] };
 }
 
 export interface Project {
