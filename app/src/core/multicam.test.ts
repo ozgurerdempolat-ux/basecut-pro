@@ -65,3 +65,38 @@ describe('multicam', () => {
     expect(px(2)[2]).toBeGreaterThan(150); // blue camera
   }, 60000);
 });
+
+describe('nested sequences', () => {
+  it('the nested clip moves/scales its contents, in preview data and export', async () => {
+    const { expandSequence } = await import('./multicam');
+    const p = makeProject();
+    const red: MediaItem = { ...media('R', camA, 16), width: 64, height: 36 };
+    p.media = { R: red };
+    const inner = makeSequence({ name: 'iç', width: 160, height: 90, fps: 25 });
+    const iv = tracksOfKind(inner, 'video')[0].id;
+    inner.clips.r = { id: 'r', trackId: iv, mediaId: 'R', stream: 'video', start: 0, duration: 50, srcIn: 0, speed: 1, linkId: null, enabled: true, name: 'r', label: 'iris', transform: defaultTransform(), volumeDb: param(0) };
+    inner.clips.r.transform.posX.value = 20;
+    p.sequences[inner.id] = inner;
+    const s = makeSequence({ width: 160, height: 90, fps: 25 });
+    const [V1, V2] = tracksOfKind(s, 'video').map((t) => t.id);
+    p.media.N = { ...red, id: 'N', path: '', synthetic: { type: 'multicam', seqId: inner.id } };
+    s.clips.n = { id: 'n', trackId: V1, mediaId: 'N', stream: 'video', start: 10, duration: 40, srcIn: 0.4, speed: 1, linkId: null, enabled: true, name: 'iç', label: 'iris', transform: defaultTransform(), volumeDb: param(0), nest: { seqId: inner.id } };
+    s.clips.n.transform.scale.value = 50;
+    s.clips.n.transform.posX.value = -40;
+    void V2;
+    const flat = expandSequence(s, p);
+    const v = Object.values(flat.clips).find((c) => c.id === 'n>r')!;
+    expect(v.start).toBe(10);
+    expect(v.duration).toBe(40);
+    expect(v.srcIn).toBeCloseTo(0.4, 5);
+    expect(v.transform.scale.value).toBeCloseTo(50, 3);
+    expect(v.transform.posX.value).toBeCloseTo(-40 + 20 * 0.5, 3);
+    expect(flat.tracks.findIndex((t) => t.id === v.trackId)).toBe(1); // right above V1
+    const out = join(dir, 'nest.mp4');
+    execFileSync(FFMPEG, buildRenderPlan(p, s, defaultExport(out)).args, { stdio: 'pipe' });
+    const px = (x: number, y: number) => [...execFileSync(FFMPEG, ['-v', 'error', '-ss', '1', '-i', out, '-frames:v', '1', '-vf', `crop=4:4:${x - 2}:${y - 2},scale=1:1`, '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'])];
+    // half-size red picture centred at x = 80 - 30 = 50
+    expect(px(50, 45)[0]).toBeGreaterThan(150);
+    expect(px(140, 45)[0]).toBeLessThan(40);
+  }, 60000);
+});

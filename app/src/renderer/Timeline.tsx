@@ -4,6 +4,7 @@ import * as ops from '../core/ops';
 import { I } from './icons';
 import { FX_MIME, FxDrag, addAudioEffect, addEffect, addTransition, transitionTarget } from './Effects';
 import { clipMenu, laneMenu, trackMenu, transitionMenu } from './menus';
+import { openNested } from './multicam';
 import { stabilizedSource } from '../core/stabilize';
 import { hasRemap } from '../core/model';
 import { stabStatus } from './stabilizer';
@@ -737,6 +738,7 @@ const ClipView = memo(function ClipView({ clip, zoom, height, selected, tool, on
   return (
     <div className={`clip ${kind} ${selected ? 'sel' : ''} ${clip.enabled ? '' : 'disabled'} ${media && !media.online ? 'offline' : ''}`}
       style={{ left, width, cursor }} onMouseDown={(e) => onMouseDown(e, clip, null)} onContextMenu={(e) => clipMenu(e, clip)}
+      onDoubleClick={(e) => { if (clip.nest || clip.mc) { e.stopPropagation(); openNested(clip.id); } }}
       title={`${clip.name}\n${framesToTimecode(clip.start, fps)} → ${framesToTimecode(clipEnd(clip), fps)} (${framesToTimecode(clip.duration, fps)})${clip.speed !== 1 ? `\nHız %${Math.round(clip.speed * 100)}` : ''}`}>
       <div className="cname">{clip.name}{clip.speed !== 1 && <span className="speed">%{Math.round(clip.speed * 100)}</span>}{hasRemap(clip) && <span className="speed" title="Hız rampası">⤴ rampa</span>}</div>
       {hasFx && <div className="fx">fx</div>}

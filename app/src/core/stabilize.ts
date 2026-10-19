@@ -68,7 +68,7 @@ export function stabilizedSource(c: Clip, m: MediaItem, fps: number): { path: st
 
 /** true when the clip has a stabiliser that still has to be (re)analysed */
 export function needsStabilize(c: Clip, m: MediaItem | undefined, fps: number): boolean {
-  return !!m && !!stabEffect(c) && m.kind === 'video' && !stabilizedSource(c, m, fps);
+  return !!m && !!m.path && !m.synthetic && !c.nest && !c.mc && !!stabEffect(c) && m.kind === 'video' && !stabilizedSource(c, m, fps);
 }
 
 // ------------------------------------------------------------------ ffmpeg arguments

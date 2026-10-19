@@ -34,7 +34,7 @@ export interface MediaItem {
   /** set for generated titles: the design the image was rendered from */
   title?: import('./title').TitleData;
   /** generated items: adjustment layer (applies its effects to everything below) or colour matte */
-  synthetic?: { type: 'adjustment' | 'matte' | 'multicam'; color?: number; seqId?: Id };
+  synthetic?: { type: 'adjustment' | 'matte' | 'multicam' | 'nest'; color?: number; seqId?: Id };
 }
 
 export interface Bin {
@@ -150,6 +150,8 @@ export interface Clip {
   audioFx?: import('./audiofx').AudioEffect[];
   /** multicam clip: shows one angle of a multicam source sequence (srcIn = seconds on that sequence) */
   mc?: import('./multicam').MulticamRef;
+  /** nested sequence clip: shows another sequence (srcIn = seconds on that sequence) */
+  nest?: { seqId: Id };
   /** time remapping (speed ramps): speed in % over the clip, keyframed; video only, forward only */
   remap?: AnimatableParam;
   /** frame hold: the clip shows this source time (seconds) as a still, silent */

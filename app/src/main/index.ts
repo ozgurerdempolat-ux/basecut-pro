@@ -228,6 +228,7 @@ function buildMenu() {
       { label: 'Bağla / Bağlantıyı Kaldır', accelerator: 'CmdOrCtrl+L', click: cmd('toggle-link') },
       { label: 'Etkinleştir', accelerator: 'Shift+E', click: cmd('toggle-enable') },
       { label: 'Yeniden Adlandır…', click: cmd('rename-clip') },
+      { label: 'İç İçe Yerleştir (Nest)', click: cmd('nest') },
       { type: 'separator' },
       { label: 'Kare Dondurma Ekle', click: cmd('frame-hold') },
       { label: 'Kare Dondurma Bölümü Ekle (2 sn)', click: cmd('frame-hold-segment') },

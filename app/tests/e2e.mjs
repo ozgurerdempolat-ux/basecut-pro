@@ -815,6 +815,30 @@ if (existsSync(outFile)) {
   await page.evaluate(() => window.__kurgu.store.useStore.setState({ multicamView: false }));
 }
 
+// ---- nest
+{
+  const r = await page.evaluate(() => {
+    const k = window.__kurgu.store;
+    const st = k.useStore.getState();
+    // back to the main edit
+    const main = Object.values(st.project.sequences).find((s) => s.name === 'Sekans 01');
+    k.editProject('aç', (p) => { p.activeSequenceId = main.id; });
+    const s = k.committedSeq();
+    const v = Object.values(s.clips).filter((c) => c.stream === 'video' && !c.mc).sort((a, b) => a.start - b.start).slice(0, 2);
+    k.selectClips(v.map((c) => c.id));
+    return { before: Object.keys(s.clips).length, end: Math.max(...Object.values(s.clips).map((c) => c.start + c.duration)) };
+  });
+  await page.evaluate(() => window.__kurgu.app.runCommand('nest'));
+  const after = await page.evaluate(() => { const s = window.__kurgu.store.committedSeq(); const n = Object.values(s.clips).find((c) => c.nest); return { has: !!n, end: Math.max(...Object.values(s.clips).map((c) => c.start + c.duration)), id: n?.id }; });
+  await page.waitForTimeout(600);
+  const dark = await page.evaluate(() => { const c = document.querySelector('.viewer canvas'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let t = 0; for (let i = 0; i < d.length; i += 40) t += d[i] + d[i + 1] + d[i + 2]; return t / (d.length / 40) / 3; });
+  check('İç içe yerleştir: klipler yeni sekansa taşındı, görüntü aynı kaldı', after.has && after.end === r.end && dark > 10, JSON.stringify({ ...after, dark: Math.round(dark) }));
+  const clipEl = await page.$(`.clip:has-text("İç içe sekans")`);
+  if (clipEl) await clipEl.dblclick();
+  const opened = await page.evaluate(() => window.__kurgu.store.committedSeq().name);
+  check('İç içe sekans çift tıkla açılıyor', opened.startsWith('İç içe sekans'), opened);
+}
+
 // ---- crash isolation: kill the worker mid-job and keep editing
 const pid = await app.evaluate(async ({ app }) => app.getAppMetrics().find((m) => m.type === 'Utility' && /Kurgu Media Worker|NodeService/.test(m.serviceName ?? m.name ?? ''))?.pid ?? null);
 if (pid) {

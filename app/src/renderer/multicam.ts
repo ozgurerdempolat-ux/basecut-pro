@@ -110,3 +110,59 @@ export function flattenMulticam() {
     }
   });
 }
+
+// ------------------------------------------------------------------ nested sequences
+
+/** Nest: move the selected clips into a new sequence and put one nested clip in their place */
+export function nestSelection(): string | null {
+  const st = useStore.getState();
+  const seq = committedSeq(st);
+  const ids = new Set(ops.withLinked(seq, st.selection));
+  const sel = [...ids].map((id) => seq.clips[id]).filter(Boolean);
+  if (!sel.length) { toast('İç içe yerleştirmek için klip seçin', 'error'); return null; }
+  const from = Math.min(...sel.map((c) => c.start)), to = Math.max(...sel.map(clipEnd));
+  const n = Object.values(st.project.sequences).filter((s) => s.name.startsWith('İç içe sekans')).length + 1;
+  const innerId = newId('seq');
+  const mediaId = newId('m');
+  let nestedId = '';
+  editProject('İç içe yerleştir', (p) => {
+    const s = p.sequences[seq.id];
+    const inner = { ...JSON.parse(JSON.stringify(s)), id: innerId, name: `İç içe sekans ${n}`, clips: {}, markers: [], playhead: 0, inPoint: null, outPoint: null, captions: undefined, transcript: undefined, multicam: undefined } as typeof s;
+    const tmap = new Map<string, string>();
+    inner.tracks = s.tracks.map((t) => { const nt = { ...t, id: newId('trk'), targeted: false, locked: false }; tmap.set(t.id, nt.id); return nt; });
+    for (const c of sel) {
+      const x = JSON.parse(JSON.stringify(s.clips[c.id]));
+      x.id = newId('clip'); x.trackId = tmap.get(c.trackId)!; x.start = c.start - from;
+      inner.clips[x.id] = x;
+      delete s.clips[c.id];
+    }
+    p.sequences[innerId] = inner;
+    p.media[mediaId] = {
+      id: mediaId, path: '', name: inner.name, kind: 'video', duration: (to - from) / s.fps, fps: s.fps, width: s.width, height: s.height,
+      hasVideo: sel.some((c) => c.stream === 'video'), hasAudio: sel.some((c) => c.stream === 'audio'), audioChannels: 2, sampleRate: 48000, codec: 'sequence',
+      binId: null, label: 'forest', online: true, markIn: null, markOut: null, synthetic: { type: 'nest', seqId: innerId },
+    };
+    const vTrack = s.tracks.filter((t) => t.kind === 'video').find((t) => sel.some((c) => c.trackId === t.id));
+    const aTrack = s.tracks.filter((t) => t.kind === 'audio').find((t) => sel.some((c) => c.trackId === t.id));
+    const link = vTrack && aTrack ? newId('link') : null;
+    const base = { mediaId, start: from, duration: to - from, srcIn: 0, speed: 1, linkId: link, enabled: true, name: inner.name, label: 'forest' as const, transform: defaultTransform(), volumeDb: param(0), nest: { seqId: innerId } };
+    for (const [t, stream] of [[vTrack, 'video'], [aTrack, 'audio']] as const) {
+      if (!t) continue;
+      ops.clearRange(s, t.id, from, to);
+      const id = newId('clip');
+      s.clips[id] = { ...base, id, trackId: t.id, stream };
+      if (stream === 'video') nestedId = id;
+    }
+  });
+  if (nestedId) useStore.setState({ selection: [nestedId] });
+  toast('İç içe sekans oluşturuldu — açmak için klibe çift tıklayın', 'success');
+  return innerId;
+}
+
+/** open the sequence behind a nested / multicam clip */
+export function openNested(clipId: string) {
+  const st = useStore.getState();
+  const c = committedSeq(st).clips[clipId];
+  const id = c?.nest?.seqId ?? c?.mc?.seqId;
+  if (id && st.project.sequences[id]) editProject('Sekansı aç', (p) => { p.activeSequenceId = id; });
+}

@@ -100,7 +100,7 @@ Nudge / slide / slip clips by 1 and 5 frames,timeline,should,yes,yes,Alt+arrows
 Copy / paste / paste insert / paste attributes,timeline,must,yes,yes,
 Remove attributes,timeline,should,yes,yes,
 Duplicate detection highlighting,timeline,could,yes,no,
-Nested sequences (nest / open / reveal),timeline,must,yes,no,
+Nested sequences (nest / open / reveal),timeline,must,yes,yes,
 Multiple sequences as tabs,timeline,must,yes,no,
 Work area bar,timeline,could,yes,no,
 Markers: add / edit / colors / duration / types,timeline,must,yes,partial,M

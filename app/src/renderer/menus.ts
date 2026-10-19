@@ -8,6 +8,7 @@ import { runCommand } from './App';
 import { MenuItem, openMenu } from './ContextMenu';
 import { DEFAULT_AUDIO_TRANSITION, DEFAULT_TRANSITION, addTransition, removeTransition } from './Effects';
 import { committedSeq, edit, editProject, selectClips, setPlayhead, toast, useStore } from './store';
+import { openNested } from './multicam';
 
 const LABEL_NAMES: [LabelColor, string][] = [
   ['violet', 'Menekşe'], ['iris', 'İris'], ['caribbean', 'Karayip'], ['lavender', 'Lavanta'], ['cerulean', 'Gök mavisi'], ['forest', 'Orman'],
@@ -42,6 +43,8 @@ export function clipMenu(e: Ev, clip: Clip) {
     { label: 'Etiket', submenu: LABEL_NAMES.map(([id, name]) => ({ label: name, checked: clip.label === id, action: () => edit('Etiket', (s) => { for (const x of sel) if (s.clips[x]) s.clips[x].label = id; }) })) },
     { sep: true },
     { label: 'Hız / Süre…', shortcut: 'Ctrl+R', action: run('speed') },
+    { label: 'İç İçe Yerleştir (Nest)', action: run('nest') },
+    ...(clip.nest || clip.mc ? [{ label: clip.mc ? 'Çoklu kamera kaynağını aç' : 'İç içe sekansı aç', action: () => openNested(clip.id) } as MenuItem] : []),
   ];
   if (isV) items.push(
     { label: 'Kare Dondurma Ekle', action: run('frame-hold'), disabled: !inside },

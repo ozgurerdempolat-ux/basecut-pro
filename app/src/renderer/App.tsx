@@ -3,7 +3,7 @@ import { Clip, clipEnd, sequenceDuration, sourceTimeAt } from '../core/model';
 import * as ops from '../core/ops';
 import { Dialogs } from './Dialogs';
 import { ContextMenuHost } from './ContextMenu';
-import { flattenMulticam, switchAngle } from './multicam';
+import { flattenMulticam, nestSelection, switchAngle } from './multicam';
 import { ExportMode } from './ExportMode';
 import { I } from './icons';
 import { ProgramMonitor, SourceMonitor, sourceEdit } from './Monitors';
@@ -211,6 +211,7 @@ export function runCommand(c: string) {
     case 'auto-reframe': useStore.setState({ dialog: { kind: 'reframe' } }); return;
     case 'create-multicam': if (st.selectedMedia.length < 2) toast('Proje panelinde en az iki kamera dosyası seçin', 'error'); else useStore.setState({ dialog: { kind: 'multicam' } }); return;
     case 'flatten-multicam': flattenMulticam(); return;
+    case 'nest': nestSelection(); return;
     case 'multicam-view': useStore.setState((s) => ({ multicamView: !s.multicamView })); return;
     case 'close-gaps': edit('Boşlukları kapat', (s) => ops.closeAllGaps(s)); return;
     case 'default-transition': applyDefaultTransition(); return;

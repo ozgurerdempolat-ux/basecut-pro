@@ -213,7 +213,7 @@ export function EffectControls() {
             <ParamRow clip={clip} k="scale" label="Ölçek" local={local} step={0.5} unit="%" min={0} />
             <ParamRow clip={clip} k="rotation" label="Döndürme" local={local} step={0.5} unit="°" />
           </Group>
-          {clip.speed > 0 && media?.kind === 'video' && (
+          {clip.speed > 0 && media?.kind === 'video' && !media.synthetic && (
             <Group title="Zaman yeniden eşleme (hız rampası)">
               <ParamRow clip={clip} k="remap" label="Hız" local={local} step={1} unit="%" min={5} max={2000} />
               <div className="ramp-presets">

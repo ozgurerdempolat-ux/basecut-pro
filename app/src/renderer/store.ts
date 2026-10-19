@@ -283,7 +283,7 @@ export async function importPaths(paths: string[], opts: { createSequence?: bool
 }
 
 export async function loadAssets(m: MediaItem) {
-  if (!m.path || m.synthetic?.type === 'multicam') return; // nothing on disk to analyse
+  if (!m.path || m.synthetic?.type === 'multicam' || m.synthetic?.type === 'nest') return; // nothing on disk to analyse
   try {
     const a = await window.kurgu.assets(m.path);
     set((s) => ({ assets: { ...s.assets, [m.path]: a } }));

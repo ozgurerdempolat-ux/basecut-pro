@@ -136,3 +136,118 @@ export function expandMulticam(seq: Sequence, sequences: Project['sequences']): 
   cache.set(seq, { project: sequences, out });
   return out;
 }
+
+// ------------------------------------------------------------------ nested sequences
+
+import type { AnimatableParam, Keyframe, MediaItem as MI, Track } from './model';
+type _MI = MI;
+import { evalParam } from './model';
+
+/** union of keyframe frames (parent-local) from params, inside [0, dur) */
+function keyTimes(ps: { p: AnimatableParam; shift: number }[], dur: number): number[] {
+  const set = new Set<number>([0]);
+  for (const { p, shift } of ps) for (const k of p.keyframes) { const f = k.frame + shift; if (f > 0 && f < dur) set.add(f); }
+  return [...set].sort((a, b) => a - b);
+}
+function composed(times: number[], fn: (f: number) => number): AnimatableParam {
+  if (times.length <= 1) return { value: fn(0), keyframes: [] };
+  return { value: fn(0), keyframes: times.map((f): Keyframe => ({ frame: f, value: Math.round(fn(f) * 1000) / 1000, ease: 'linear' })) };
+}
+
+/**
+ * The sequence with nested-sequence clips opened up: the nested sequence's
+ * tracks are inserted right above the track that holds the nested clip, its
+ * clips re-timed into the parent, and the nested clip's motion, opacity,
+ * effects and volume composed onto each of them. Works recursively.
+ */
+export function expandNested(seq: Sequence, project: Pick<Project, 'sequences' | 'media'>, depth = 0): Sequence {
+  const sequences = project.sequences;
+  if (depth > 8 || !Object.values(seq.clips).some((c) => c.nest)) return seq;
+  const tracks: Track[] = [];
+  const clips: Record<string, Clip> = {};
+  for (const c of Object.values(seq.clips)) if (!c.nest) clips[c.id] = c;
+  for (const t of seq.tracks) {
+    tracks.push(t);
+    const nested = Object.values(seq.clips).filter((c) => c.nest && c.trackId === t.id);
+    if (!nested.length) continue;
+    // all nested clips on this track share one set of virtual tracks per inner sequence track
+    const innerSeqs = [...new Set(nested.map((c) => c.nest!.seqId))].map((id) => sequences[id]).filter(Boolean).map((s) => expandNested(expandMulticam(s, sequences), project, depth + 1));
+    const inner = innerSeqs.flatMap((s) => s.tracks.filter((x) => x.kind === t.kind).map((x) => ({ s, x })));
+    const vt = new Map<string, Track>();
+    for (const { s, x } of inner) {
+      const v: Track = { ...x, id: `${t.id}~${s.id}~${x.id}`, name: `${t.name}·${x.name}`, muted: t.muted || x.muted, solo: t.solo || x.solo, locked: true, volumeDb: t.volumeDb + x.volumeDb, pan: x.pan ?? t.pan };
+      vt.set(`${s.id}~${x.id}`, v);
+      tracks.push(v);
+    }
+    for (const c of nested) {
+      const src = innerSeqs.find((s) => s.id === c.nest!.seqId);
+      if (!src) continue;
+      const scale = src.fps / seq.fps;
+      const from = c.srcIn * src.fps, to = from + c.duration * scale;
+      const fitO = Math.min(seq.width / src.width, seq.height / src.height);
+      for (const x of Object.values(src.clips)) {
+        if (x.stream !== c.stream || !x.enabled || clipEnd(x) <= from || x.start >= to) continue;
+        const track = vt.get(`${src.id}~${x.trackId}`);
+        if (!track) continue;
+        const a = Math.max(x.start, from), b = Math.min(clipEnd(x), to);
+        const start = c.start + Math.round((a - from) / scale), end = c.start + Math.round((b - from) / scale);
+        if (end <= start) continue;
+        const dur = end - start;
+        // parent-local frame f (inside the virtual clip) ↔ inner clip-local and outer clip-local frames
+        const innerShift = Math.round((x.start - a) / scale) ; // inner keyframe k.frame ↦ parent-local k.frame/scale + innerShift
+        const outerShift = c.start - start;
+        const inL = (f: number) => (f - innerShift) * scale;
+        const outL = (f: number) => f - outerShift;
+        const T = x.transform, O = c.transform;
+        const times = keyTimes([...(Object.values(T) as AnimatableParam[]).map((p) => ({ p: { ...p, keyframes: p.keyframes.map((k: Keyframe) => ({ ...k, frame: k.frame / scale })) }, shift: innerShift })), ...(Object.values(O) as AnimatableParam[]).map((p) => ({ p, shift: outerShift }))], dur);
+        const ev = (p: AnimatableParam, f: number) => evalParam(p, f);
+        const transform = { ...T };
+        if (c.stream === 'video') {
+          const m = x; void m;
+          const rot = (f: number) => (ev(O.rotation, outL(f)) * Math.PI) / 180;
+          const k = (f: number) => fitO * ev(O.scale, outL(f)) / 100;
+          transform.posX = composed(times, (f) => { const r = rot(f), px = ev(T.posX, inL(f)), py = ev(T.posY, inL(f)); return ev(O.posX, outL(f)) + (px * Math.cos(r) - py * Math.sin(r)) * k(f); });
+          transform.posY = composed(times, (f) => { const r = rot(f), px = ev(T.posX, inL(f)), py = ev(T.posY, inL(f)); return ev(O.posY, outL(f)) + (px * Math.sin(r) + py * Math.cos(r)) * k(f); });
+          // the inner clip's own fit in the inner frame vs. in the parent frame: carried into scale
+          transform.scale = composed(times, (f) => ev(T.scale, inL(f)) * k(f) * fitRatio(project.media[x.mediaId], src, seq));
+          transform.rotation = composed(times, (f) => ev(T.rotation, inL(f)) + ev(O.rotation, outL(f)));
+          transform.opacity = composed(times, (f) => (ev(T.opacity, inL(f)) * ev(O.opacity, outL(f))) / 100);
+        }
+        const volT = keyTimes([{ p: { ...x.volumeDb, keyframes: x.volumeDb.keyframes.map((kf) => ({ ...kf, frame: kf.frame / scale })) }, shift: innerShift }, { p: c.volumeDb, shift: outerShift }], dur);
+        const v: Clip = {
+          ...x,
+          id: `${c.id}>${x.id}`,
+          trackId: track.id,
+          start, duration: dur,
+          srcIn: x.speed >= 0 ? x.srcIn + ((a - x.start) / src.fps) * Math.abs(x.speed) : x.srcIn + ((clipEnd(x) - b) / src.fps) * Math.abs(x.speed),
+          linkId: null,
+          transform,
+          volumeDb: composed(volT, (f) => ev(x.volumeDb, inL(f)) + ev(c.volumeDb, outL(f))),
+          effects: [...(x.effects ?? []), ...(c.effects ?? [])],
+          audioFx: [...(x.audioFx ?? []), ...(c.audioFx ?? [])],
+          color: x.color ?? c.color,
+          blend: c.blend && c.blend !== 'normal' ? c.blend : x.blend,
+          transIn: start === c.start && c.transIn ? c.transIn : a === x.start ? x.transIn : undefined,
+          transOut: end === clipEnd(c) && c.transOut ? c.transOut : b === clipEnd(x) ? x.transOut : undefined,
+          remap: x.remap ? { ...x.remap, keyframes: x.remap.keyframes.map((kf) => ({ ...kf, frame: Math.round(kf.frame / scale + innerShift) })) } : undefined,
+          nest: undefined,
+        };
+        clips[v.id] = v;
+      }
+    }
+  }
+  return { ...seq, tracks, clips };
+}
+
+/** the inner clip was fitted into the inner frame; in the parent it is fitted into the parent frame instead */
+function fitRatio(m: MediaItem | undefined, inner: Sequence, parent: Sequence): number {
+  const iw = m?.width || inner.width, ih = m?.height || inner.height;
+  const fitIn = Math.min(inner.width / iw, inner.height / ih);
+  const fitParent = Math.min(parent.width / iw, parent.height / ih);
+  return fitIn / fitParent;
+}
+
+/** everything a renderer needs: multicam and nested clips opened up */
+export function expandSequence(seq: Sequence, project: Pick<Project, 'sequences' | 'media'>): Sequence {
+  return expandNested(expandMulticam(seq, project.sequences), project);
+}

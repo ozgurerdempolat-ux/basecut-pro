@@ -11,7 +11,7 @@ import { isNeutral } from '../core/color';
 import { EFFECT_BY_ID, motionAt, transitionWindows } from '../core/fx';
 import { IMPACT_BY_ID } from '../core/impact';
 import { stabilizedSource } from '../core/stabilize';
-import { expandMulticam } from '../core/multicam';
+import { expandSequence } from '../core/multicam';
 import { activeMasks } from '../core/mask';
 import { previewMask } from './masks';
 import { applyEffects, drawBlurFill, drawTransition, release, tmpCanvas } from './fxPreview';
@@ -126,7 +126,7 @@ class Player {
     this.dirty = false;
     this.lastFrame = frame;
     // multicam clips play as the clips of their active angle
-    const flat = expandMulticam(seq, st.project.sequences);
+    const flat = expandSequence(seq, st.project);
     this.render(flat, frame, st.playing, st.rate);
     this.syncAudio(flat, f, st.playing, st.rate);
     this.onFrame?.(frame);
