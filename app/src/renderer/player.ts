@@ -3,7 +3,7 @@
 // visible clip. Audio clips play through their own media elements routed into
 // a WebAudio graph for gain above 0 dB and metering.
 
-import { Clip, MediaItem, Sequence, clipEnd, evalParam, sequenceDuration, sourceTimeAt } from '../core/model';
+import { Clip, MediaItem, Sequence, clipEnd, evalParam, hasRemap, remapAdvance, remapSpeedAt, sequenceDuration, sourceTimeAt } from '../core/model';
 import { activeSeq, committedSeq, playbackPath, setPlayhead, useStore } from './store';
 import { drawCaptions } from './Captions';
 import { grader } from './grader';
@@ -227,6 +227,10 @@ class Player {
   /** source time for a timeline frame, also outside the clip (transition handles), clamped to the media */
   private srcTime(c: Clip, m: MediaItem, f: number, fps: number): number {
     if (c.freeze !== undefined) return Math.max(0, Number.isFinite(m.duration) ? Math.min(m.duration - 0.02, c.freeze) : c.freeze);
+    if (hasRemap(c)) {
+      const t = c.srcIn + remapAdvance(c, f - c.start, fps);
+      return Math.max(0, Number.isFinite(m.duration) ? Math.min(m.duration - 0.02, t) : t);
+    }
     const sp = Math.abs(c.speed) || 1;
     let s = c.speed >= 0 ? c.srcIn + ((f - c.start) / fps) * sp : c.srcIn + ((clipEnd(c) - f) / fps) * sp;
     if (Number.isFinite(m.duration)) s = Math.min(m.duration - 0.02, s);
@@ -251,11 +255,12 @@ class Player {
     if (v.el instanceof HTMLVideoElement) {
       const el = v.el;
       const forward = playing && c.speed > 0 && rate > 0 && c.freeze === undefined;
-      const pr = Math.abs(c.speed * rate);
+      const ramp = hasRemap(c);
+      const pr = Math.abs((ramp ? remapSpeedAt(c, frame - c.start) : c.speed) * rate);
       if (forward && pr <= 16) {
-        if (Math.abs(el.playbackRate - pr) > 1e-3) el.playbackRate = pr;
+        if (Math.abs(el.playbackRate - pr) > 1e-3) el.playbackRate = Math.max(0.0625, pr);
         if (el.paused) { el.currentTime = srcT; void el.play().catch(() => {}); }
-        else if (Math.abs(el.currentTime - srcT) > 0.25) el.currentTime = srcT;
+        else if (Math.abs(el.currentTime - srcT) > (ramp ? 0.12 : 0.25)) el.currentTime = srcT;
       } else {
         if (!el.paused) el.pause();
         if (Math.abs(el.currentTime - srcT) > 0.5 / seq.fps) el.currentTime = srcT;

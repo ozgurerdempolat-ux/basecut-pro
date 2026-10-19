@@ -571,6 +571,17 @@ await page.click('.modes button:has-text("Kurgu")').catch(() => {});
   await shot(page, '20-anahtar-kare-seridi');
 }
 
+// ---- speed ramp preset
+{
+  const id = await page.evaluate(() => { const k = window.__kurgu.store; const s = k.committedSeq(); const st = k.useStore.getState(); const c = Object.values(s.clips).filter((x) => x.stream === 'video' && st.project.media[x.mediaId]?.kind === 'video' && x.speed > 0 && x.freeze === undefined).sort((a, b) => b.duration - a.duration)[0]; k.selectClips([c.id], false); k.setPlayhead(c.start + 3); k.useStore.setState({ leftTab: 'fx' }); return c.id; });
+  await page.waitForSelector('.ramp-presets button:has-text("Hızlı–yavaş–hızlı")');
+  await page.click('.ramp-presets button:has-text("Hızlı–yavaş–hızlı")');
+  const rk = await page.evaluate((cid) => window.__kurgu.store.committedSeq().clips[cid].remap?.keyframes.length ?? 0, id);
+  const badge = await page.$$eval('.clip .speed', (x) => x.some((y) => y.textContent.includes('rampa')));
+  check('Hız rampası hazır ayarla uygulandı', rk === 5 && badge, `${rk} anahtar kare`);
+  await shot(page, '27-hiz-rampasi');
+}
+
 // ---- adjustment layer + blend mode
 {
   await page.evaluate(() => { const k = window.__kurgu.store; k.setPlayhead(40); k.useStore.setState({ leftTab: 'project' }); });

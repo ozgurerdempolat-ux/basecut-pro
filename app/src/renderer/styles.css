@@ -407,3 +407,4 @@ select.mini { background: var(--bg-2); border: 1px solid var(--line); border-rad
 /* selection actions float at the bottom so selecting never shifts the text under the mouse */
 .transcript { position: relative; }
 .tr-sel { position: absolute; left: 8px; right: 8px; bottom: 8px; margin: 0; z-index: 3; background: #3a2016; border: 1px solid rgba(255,106,61,0.6); box-shadow: 0 6px 18px rgba(0,0,0,0.45); }
+.ramp-presets { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 10px 8px 28px; }

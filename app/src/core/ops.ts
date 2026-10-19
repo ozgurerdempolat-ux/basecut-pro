@@ -5,7 +5,7 @@
 
 import {
   Clip, Id, MediaItem, Sequence, Track, clipEnd, clipSrcOut, clipSrcSpan, clipsOnTrack,
-  defaultTransform, makeTrack, newId, param, sourceTimeAt, tracksOfKind,
+  defaultTransform, hasRemap, makeTrack, newId, param, remapAdvance, sourceTimeAt, tracksOfKind,
 } from './model';
 
 export class EditError extends Error {}
@@ -94,7 +94,7 @@ export function splitAt(s: Sequence, frame: number, trackIds: Id[]): Id[] {
     right.id = newId('clip');
     right.start = frame;
     right.duration = c.duration - leftDur;
-    if (c.speed >= 0) right.srcIn = c.srcIn + (leftDur / s.fps) * c.speed;
+    if (c.speed >= 0) right.srcIn = c.srcIn + headAdvance(c, leftDur, s.fps);
     else {
       // reversed: the left part shows the end of the source range
       right.srcIn = c.srcIn;
@@ -114,8 +114,13 @@ export function splitAt(s: Sequence, frame: number, trackIds: Id[]): Id[] {
   return created;
 }
 
+/** source seconds the head of a clip moves when d frames are trimmed off it (speed ramps aware) */
+function headAdvance(c: Clip, d: number, fps: number): number {
+  return hasRemap(c) ? remapAdvance(c, d, fps) : d * srcPerFrame(c, fps);
+}
+
 function shiftKeyframes(c: Clip, delta: number): void {
-  const all = [c.transform.posX, c.transform.posY, c.transform.scale, c.transform.rotation, c.transform.opacity, c.volumeDb];
+  const all = [c.transform.posX, c.transform.posY, c.transform.scale, c.transform.rotation, c.transform.opacity, c.volumeDb, ...(c.remap ? [c.remap] : [])];
   for (const p of all) {
     if (!p.keyframes.length) continue;
     p.keyframes = p.keyframes.map((k) => ({ ...k, frame: k.frame + delta }));
@@ -356,7 +361,7 @@ export function trimEdge(
       if (c.speed < 0) c.srcIn -= d * per;
       c.duration += d;
     } else {
-      if (c.speed >= 0) c.srcIn += d * per;
+      if (c.speed >= 0) c.srcIn += headAdvance(c, d, s.fps);
       if (mode === 'normal') { c.start += d; c.duration -= d; shiftKeyframes(c, -d); }
       else { c.duration -= d; shiftKeyframes(c, -d); }
     }
@@ -400,7 +405,7 @@ export function rollEdit(s: Sequence, media: Record<Id, MediaItem>, leftId: Id, 
     l.duration += d;
     if (r) {
       // right head moves by d, its end stays
-      if (r.speed >= 0) r.srcIn += d * srcPerFrame(r, s.fps);
+      if (r.speed >= 0) r.srcIn += headAdvance(r, d, s.fps);
       r.start += d;
       r.duration -= d;
       shiftKeyframes(r, -d);
@@ -467,7 +472,7 @@ function rawEdge(s: Sequence, c: Clip, edge: Edge, d: number): void {
     if (c.speed < 0) c.srcIn -= d * per;
     c.duration += d;
   } else {
-    if (c.speed >= 0) c.srcIn += d * per;
+    if (c.speed >= 0) c.srcIn += headAdvance(c, d, s.fps);
     c.start += d;
     c.duration -= d;
     shiftKeyframes(c, -d);
@@ -499,6 +504,7 @@ export function rateStretch(s: Sequence, clipId: Id, edge: Edge, delta: number, 
     if (edge === 'in') c.start += d;
     c.duration = newDur;
     c.speed = Math.sign(c.speed || 1) * (span / (newDur / s.fps));
+    delete c.remap; // a constant rate replaces the ramp
   }
   return d;
 }
@@ -525,6 +531,7 @@ export function setSpeed(s: Sequence, clipId: Id, speed: number, ripple: boolean
     const span = clipSrcSpan(c, s.fps);
     c.duration = newDur;
     c.speed = speed;
+    delete c.remap;
     // keep the same source range (rounding may change it by < 1 frame)
     void span;
   }

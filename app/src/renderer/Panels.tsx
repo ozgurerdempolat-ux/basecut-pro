@@ -213,6 +213,15 @@ export function EffectControls() {
             <ParamRow clip={clip} k="scale" label="Ölçek" local={local} step={0.5} unit="%" min={0} />
             <ParamRow clip={clip} k="rotation" label="Döndürme" local={local} step={0.5} unit="°" />
           </Group>
+          {clip.speed > 0 && media?.kind === 'video' && (
+            <Group title="Zaman yeniden eşleme (hız rampası)">
+              <ParamRow clip={clip} k="remap" label="Hız" local={local} step={1} unit="%" min={5} max={2000} />
+              <div className="ramp-presets">
+                {RAMP_PRESETS.map((r) => <button key={r.id} className="btn small" title={r.desc} onClick={() => edit(`Hız rampası: ${r.name}`, (s) => { const c = s.clips[clip.id]; c.remap = { value: 100, keyframes: r.keys.map(([t, v, e]) => ({ frame: Math.round(t * (c.duration - 1)), value: v, ease: e })) }; })}>{r.name}</button>)}
+                {clip.remap && <button className="btn small ghost" onClick={() => edit('Hız rampasını kaldır', (s) => { delete s.clips[clip.id].remap; })}>Kaldır</button>}
+              </div>
+            </Group>
+          )}
           <Group title="Opaklık">
             <ParamRow clip={clip} k="opacity" label="Opaklık" local={local} step={1} unit="%" min={0} max={100} />
             <div className="fx-row"><span /><span className="lbl">Karışım modu</span>
@@ -295,7 +304,20 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
+const RAMP_PRESETS: { id: string; name: string; desc: string; keys: [number, number, KeyEase][] }[] = [
+  { id: 'up', name: 'Hızlan', desc: 'Normal hızdan 4 kata yumuşakça çıkar', keys: [[0, 100, 'linear'], [0.35, 100, 'ease'], [0.7, 400, 'linear']] },
+  { id: 'slow', name: 'Yavaş çekime geç', desc: 'Önemli anda %25 hıza iner', keys: [[0, 100, 'linear'], [0.4, 100, 'ease'], [0.55, 25, 'linear']] },
+  { id: 'fsf', name: 'Hızlı–yavaş–hızlı', desc: 'Sosyal medyanın klasik hız rampası', keys: [[0, 300, 'linear'], [0.3, 300, 'ease'], [0.45, 30, 'linear'], [0.6, 30, 'ease'], [0.75, 300, 'linear']] },
+  { id: 'hit', name: 'Darbe (vuruşta yavaşla)', desc: 'Hızlı gelir, ortada bir an yavaşlar', keys: [[0, 250, 'linear'], [0.42, 250, 'fast'], [0.5, 20, 'linear'], [0.58, 20, 'ease'], [0.7, 250, 'linear']] },
+];
+const REMAP_DEFAULT: AnimatableParam = Object.freeze({ value: 100, keyframes: [] }) as AnimatableParam;
 function getParam(c: Clip, k: string): AnimatableParam {
+  if (k === 'remap') {
+    if (c.remap) return c.remap;
+    if (Object.isFrozen(c)) return REMAP_DEFAULT; // reading committed state
+    c.remap = { value: 100, keyframes: [] }; // inside an edit draft
+    return c.remap;
+  }
   return k === 'volume' ? c.volumeDb : (c.transform as unknown as Record<string, AnimatableParam>)[k];
 }
 

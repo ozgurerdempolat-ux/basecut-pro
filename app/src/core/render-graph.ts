@@ -6,6 +6,7 @@ import { AnimatableParam, Clip, MediaItem, Project, Sequence, clipEnd, clipSrcSp
 import { EFFECT_BY_ID, TRANSITION_BY_ID, motionOf, transitionWindows } from './fx';
 import { IMPACT_BY_ID, impactFilters } from './impact';
 import { stabilizedSource } from './stabilize';
+import { hasRemap, remapAdvance } from './model';
 import { maskImageFor } from './mask';
 import { AUDIO_TRANSITIONS, audioFxChain } from './audiofx';
 
@@ -145,7 +146,7 @@ export function buildRenderPlan(
     const F = seq.fps;
     const lbl = (p: string) => `${p}${n++}`;
     const srcAt = (c: Clip, f: number) => (c.speed >= 0
-      ? c.srcIn + ((f - c.start) / F) * Math.abs(c.speed)
+      ? c.srcIn + (hasRemap(c) ? remapAdvance(c, f - c.start, F) : ((f - c.start) / F) * Math.abs(c.speed))
       : c.srcIn + ((clipEnd(c) - f) / F) * Math.abs(c.speed));
 
     /**
@@ -184,10 +185,23 @@ export function buildRenderPlan(
         args.push('-ss', r6(lo), '-t', r6(srcLen + 1 / fps), '-i', srcPath);
         chain.push(`trim=duration=${r6(srcLen)}`);
         if (c.speed < 0) chain.push('reverse');
-        chain.push(`setpts=(PTS-STARTPTS)/${r6(speed)}`, `fps=${r6(fps)}`);
+        let padStart = (c.speed < 0 ? missingTail : missingHead) / speed;
+        let padEnd = (c.speed < 0 ? missingHead : missingTail) / speed;
+        if (hasRemap(c)) {
+          // speed ramp: map each source time to its output time (piecewise linear every 2 frames)
+          const xs: number[] = [], ys: number[] = [];
+          const f0 = a - c.start, f1 = b - c.start;
+          for (let f = f0; ; f = Math.min(f1, f + 2)) {
+            xs.push(srcAt(c, c.start + f) - off - lo); ys.push((f - f0) / F);
+            if (f >= f1) break;
+          }
+          chain.push('setpts=PTS-STARTPTS', `setpts='(${pwl(xs, ys, 'T')})/TB'`, `fps=${r6(fps)}`);
+          // the source ran out before the clip ends (ramp sped past the media): hold the last frame
+          const covered = xs.findIndex((x) => x > hi - lo - 1e-6);
+          padStart = 0;
+          padEnd = covered > 0 ? Math.max(0, ys[ys.length - 1] - ys[covered]) : 0;
+        } else chain.push(`setpts=(PTS-STARTPTS)/${r6(speed)}`, `fps=${r6(fps)}`);
         // output-order padding (reverse swaps head and tail)
-        const padStart = (c.speed < 0 ? missingTail : missingHead) / speed;
-        const padEnd = (c.speed < 0 ? missingHead : missingTail) / speed;
         if (padStart > 0.5 / F || padEnd > 0.5 / F) chain.push(`tpad=start_duration=${r6(padStart)}:start_mode=clone:stop_duration=${r6(padEnd)}:stop_mode=clone`);
       }
       const lut = lutFor(c);
@@ -488,6 +502,22 @@ export function blendFilter(mode: import('./model').BlendMode): string {
     return `blend=all_expr='255*clip(if(lte(${s},0.5),${b}-(1-2*${s})*${b}*(1-${b}),${b}+(2*${s}-1)*(${d}-${b})),0,1)'`;
   }
   return `blend=all_mode=${m[mode] ?? 'normal'}`;
+}
+
+/** piecewise-linear interpolation through (xs, ys) as an ffmpeg expression of v (balanced, shallow) */
+function pwl(xs: number[], ys: number[], v: string): string {
+  if (xs.length === 1) return r6(ys[0]);
+  const lin = (i: number) => {
+    const dx = xs[i + 1] - xs[i];
+    const k = dx > 1e-9 ? (ys[i + 1] - ys[i]) / dx : 0;
+    return `(${r6(ys[i])}+(${v}-${r6(xs[i])})*${r6(k)})`;
+  };
+  const seg = (i: number, j: number): string => {
+    if (j - i <= 1) return lin(i);
+    const mid = (i + j) >> 1;
+    return `if(lt(${v},${r6(xs[mid])}),${seg(i, mid)},${seg(mid, j)})`;
+  };
+  return seg(0, xs.length - 1);
 }
 
 function escapeFilterPath(p: string): string {

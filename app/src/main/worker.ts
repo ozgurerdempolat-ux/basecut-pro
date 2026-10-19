@@ -235,6 +235,13 @@ async function exportSeq(req: ExportRequest, jobId: string): Promise<string> {
   const seq = req.project.sequences[req.sequenceId];
   if (!seq) throw new Error('Sekans bulunamadı');
   const plan = buildRenderPlan(req.project, seq, req.settings, (m) => m.path, lutResolver());
+  // long graphs (speed ramps, masks, many transitions) go through a file: Windows limits command lines to 32 K
+  const fi = plan.args.indexOf('-filter_complex');
+  if (fi >= 0 && plan.args[fi + 1].length > 6000) {
+    const script = join(CACHE, `graph-${jobId}.txt`);
+    writeFileSync(script, plan.args[fi + 1], 'utf8');
+    plan.args.splice(fi, 2, '-filter_complex_script', script);
+  }
   await run(FFMPEG, plan.args, {
     jobId,
     onStdout: (s) => {

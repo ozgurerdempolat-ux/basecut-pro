@@ -148,6 +148,8 @@ export interface Clip {
   transOut?: import('./fx').TransitionSpec;
   /** audio effects (audio clips) */
   audioFx?: import('./audiofx').AudioEffect[];
+  /** time remapping (speed ramps): speed in % over the clip, keyframed; video only, forward only */
+  remap?: AnimatableParam;
   /** frame hold: the clip shows this source time (seconds) as a still, silent */
   freeze?: number;
   /** opacity masks (core/mask.ts) and their rasterised alpha image */
@@ -259,7 +261,43 @@ export function clipEnd(c: Clip): number {
 
 /** seconds of source consumed by the clip */
 export function clipSrcSpan(c: Clip, fps: number): number {
+  if (hasRemap(c)) return remapAdvance(c, c.duration, fps);
   return (c.duration / fps) * Math.abs(c.speed);
+}
+
+// ------------------------------------------------------------------ time remapping
+
+export const hasRemap = (c: Clip): c is Clip & { remap: AnimatableParam } => !!c.remap && c.speed > 0 && c.stream === 'video' && (c.remap.keyframes.length > 0 || c.remap.value !== 100);
+
+/** playback speed (×) at a clip-local frame */
+export function remapSpeedAt(c: Clip, f: number): number {
+  if (!hasRemap(c)) return Math.abs(c.speed);
+  return Math.max(0.05, evalParam(c.remap, Math.max(0, f)) / 100);
+}
+
+const prefixCache = new WeakMap<object, { fps: number; sig: string; sums: Float64Array }>();
+const remapSig = (p: AnimatableParam) => `${p.value}|${p.keyframes.map((k) => `${k.frame}:${k.value}:${k.ease}`).join(',')}`;
+/** cumulative source seconds at the start of each local frame (cached per remap curve) */
+function remapPrefix(c: Clip & { remap: AnimatableParam }, n: number, fps: number): Float64Array {
+  let e = prefixCache.get(c.remap);
+  const sig = remapSig(c.remap);
+  if (!e || e.fps !== fps || e.sig !== sig || e.sums.length < n + 1) {
+    const len = Math.max(n + 1, e && e.sig === sig ? e.sums.length * 2 : 0, 256);
+    const sums = new Float64Array(len);
+    for (let k = 1; k < len; k++) sums[k] = sums[k - 1] + Math.max(0.05, evalParam(c.remap, k - 1) / 100) / fps;
+    e = { fps, sig, sums };
+    prefixCache.set(c.remap, e);
+  }
+  return e.sums;
+}
+
+/** source seconds covered by local frames [0, frames) — fractional frames interpolate, negative frames extrapolate */
+export function remapAdvance(c: Clip, frames: number, fps: number): number {
+  if (!hasRemap(c)) return (frames / fps) * Math.abs(c.speed);
+  if (frames <= 0) return (frames / fps) * remapSpeedAt(c, 0);
+  const whole = Math.floor(frames);
+  const sums = remapPrefix(c, whole + 1, fps);
+  return sums[whole] + (frames - whole) * (remapSpeedAt(c, whole) / fps);
 }
 
 export function clipSrcOut(c: Clip, fps: number): number {
@@ -270,6 +308,7 @@ export function clipSrcOut(c: Clip, fps: number): number {
 export function sourceTimeAt(c: Clip, f: number, fps: number): number | null {
   if (f < c.start || f >= clipEnd(c)) return null;
   if (c.freeze !== undefined) return c.freeze;
+  if (hasRemap(c)) return c.srcIn + remapAdvance(c, f - c.start, fps);
   const local = (f - c.start) / fps;
   if (c.speed >= 0) return c.srcIn + local * c.speed;
   return clipSrcOut(c, fps) - local * Math.abs(c.speed);

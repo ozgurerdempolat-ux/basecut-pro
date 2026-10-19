@@ -52,6 +52,15 @@ function pick() {
             }
           });
         })
+        .then(() => {
+          // never loop: if the render still doesn't satisfy the clip, report instead of re-queuing
+          const now = useStore.getState();
+          for (const sq of Object.values(now.project.sequences)) {
+            const x = sq.clips[c.id];
+            const mm = x && now.project.media[x.mediaId];
+            if (x && mm && needsStabilize(x, mm, sq.fps) && stabKey(mm, stabParams(stabEffect(x)!.params), stabRange(x, mm, sq.fps).analyse) === key) failed.set(key, 'Sonuç bu klibe uygulanamadı');
+          }
+        })
         .catch((e: Error) => {
           const msg = e.message.includes('İptal') ? 'İptal edildi' : e.message.split('\n')[0];
           failed.set(key, msg);

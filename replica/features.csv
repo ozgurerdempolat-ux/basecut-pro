@@ -126,7 +126,7 @@ Trim numeric entry,trim,should,yes,no,
 Asymmetric trimming,trim,could,yes,no,
 Speed/Duration dialog with reverse and maintain pitch,speed,must,yes,yes,Ctrl+R
 Time interpolation: frame sampling / blending / optical flow,speed,should,yes,partial,
-Time remapping with speed ramps,speed,must,yes,no,S30
+Time remapping with speed ramps,speed,must,yes,yes,S30
 Freeze frame (frame hold / hold segment),speed,must,yes,yes,
 Multi-camera source sequence (sync by timecode/audio/in/marker),multicam,must,yes,no,F13
 Multi-camera live switching in monitor,multicam,must,yes,no,S20
@@ -302,7 +302,7 @@ Preflight check before export with one-click fixes,export,should,no,yes,X3 fixes
 Simple mode (guided one-screen editor) alongside Pro mode,ui,should,no,partial,X4 fixes.md
 Stable layouts: updates never force UI changes; roll back an update,platform,should,no,no,X6 fixes.md
 Move tracks up / down,timeline,should,no,yes,X7 forum request
-Stabilize and speed-ramp same clip without nesting,effects,should,no,no,X7 forum request
+Stabilize and speed-ramp same clip without nesting,effects,should,no,yes,X7 forum request
 Waveforms visible in multicam clips,multicam,should,no,no,X7 forum request
 Output LUT slot at end of color chain,color,should,no,no,X7 forum request
 Offline-first: no account or internet needed to edit,platform,must,no,yes,X8 fixes.md

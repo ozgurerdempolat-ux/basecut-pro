@@ -5,6 +5,7 @@ import { I } from './icons';
 import { FX_MIME, FxDrag, addAudioEffect, addEffect, addTransition, transitionTarget } from './Effects';
 import { clipMenu, laneMenu, trackMenu, transitionMenu } from './menus';
 import { stabilizedSource } from '../core/stabilize';
+import { hasRemap } from '../core/model';
 import { stabStatus } from './stabilizer';
 import { TRANSITION_BY_ID, transitionWindows } from '../core/fx';
 import { AUDIO_TRANSITIONS } from '../core/audiofx';
@@ -737,7 +738,7 @@ const ClipView = memo(function ClipView({ clip, zoom, height, selected, tool, on
     <div className={`clip ${kind} ${selected ? 'sel' : ''} ${clip.enabled ? '' : 'disabled'} ${media && !media.online ? 'offline' : ''}`}
       style={{ left, width, cursor }} onMouseDown={(e) => onMouseDown(e, clip, null)} onContextMenu={(e) => clipMenu(e, clip)}
       title={`${clip.name}\n${framesToTimecode(clip.start, fps)} → ${framesToTimecode(clipEnd(clip), fps)} (${framesToTimecode(clip.duration, fps)})${clip.speed !== 1 ? `\nHız %${Math.round(clip.speed * 100)}` : ''}`}>
-      <div className="cname">{clip.name}{clip.speed !== 1 && <span className="speed">%{Math.round(clip.speed * 100)}</span>}</div>
+      <div className="cname">{clip.name}{clip.speed !== 1 && <span className="speed">%{Math.round(clip.speed * 100)}</span>}{hasRemap(clip) && <span className="speed" title="Hız rampası">⤴ rampa</span>}</div>
       {hasFx && <div className="fx">fx</div>}
       {clip.stream === 'video' && (clip.effects ?? []).some((e) => e.type === 'warpstab' && e.enabled) && <StabBadge clip={clip} media={media} fps={fps} />}
       {stripStyle && <div className="strip" style={stripStyle} />}

@@ -36,7 +36,8 @@ export const STAB_HANDLE = 1; // seconds analysed beyond the clip on each side (
 export function stabRange(c: Clip, m: MediaItem, fps: number): { need: [number, number]; analyse: [number, number] } {
   const a = Math.min(c.srcIn, clipSrcOut(c, fps)), b = Math.max(c.srcIn, clipSrcOut(c, fps));
   const D = Number.isFinite(m.duration) ? m.duration : b + STAB_HANDLE;
-  return { need: [a, b], analyse: [Math.max(0, a - STAB_HANDLE), Math.min(D, b + STAB_HANDLE)] };
+  // a clip can ask for more than the media has (fast ramps, frame hold at the end): the render can only cover the media
+  return { need: [Math.min(a, D), Math.min(b, D)], analyse: [Math.max(0, a - STAB_HANDLE), Math.min(D, b + STAB_HANDLE)] };
 }
 
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
