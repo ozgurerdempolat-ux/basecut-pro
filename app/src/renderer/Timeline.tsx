@@ -3,6 +3,7 @@ import { Clip, Id, Sequence, Track, clipEnd, framesToTimecode, sequenceDuration,
 import * as ops from '../core/ops';
 import { I } from './icons';
 import { FX_MIME, FxDrag, addAudioEffect, addEffect, addTransition, transitionTarget } from './Effects';
+import { clipMenu, laneMenu, trackMenu, transitionMenu } from './menus';
 import { TRANSITION_BY_ID, transitionWindows } from '../core/fx';
 import { AUDIO_TRANSITIONS } from '../core/audiofx';
 import { player } from './player';
@@ -493,7 +494,8 @@ export function Timeline() {
                 beginDrag({ kind: 'scrub' });
               }} />
               {capH > 0 && <CaptionLane seq={seq} zoom={zoom} height={capH} from={visFrom} to={visTo} />}
-              <div className="lanes" style={{ height: height + 200 }} onMouseDown={onLanesMouseDown} onDoubleClick={onLaneDoubleClick} data-tool={tool}>
+              <div className="lanes" style={{ height: height + 200 }} onMouseDown={onLanesMouseDown} onDoubleClick={onLaneDoubleClick} data-tool={tool}
+                onContextMenu={(e) => { const li = laneAtClientY(e.clientY); if (li >= 0) laneMenu(e, lanes[li].track, frameAtClientX(e.clientX)); else e.preventDefault(); }}>
                 {lanes.map((l, i) => (
                   <div key={l.track.id} className={`lane kind-${l.track.kind} ${l.track.locked ? 'locked' : ''} ${dropLane === i ? 'drop' : ''}`} style={{ position: 'absolute', top: l.y, height: l.h, left: 0, right: 0 }}>
                     {(clipsByTrack.get(l.track.id) ?? []).filter((c) => clipEnd(c) >= visFrom && c.start <= visTo).map((c) => (
@@ -506,7 +508,8 @@ export function Timeline() {
                         <div key={`tr-${key}`} className={`trans-block ${w.side === 'out' && !w.B ? 'tail' : ''} ${!w.A ? 'head' : ''} ${selTransition === key ? 'sel' : ''}`}
                           style={{ left: w.a * zoom, width: Math.max(6, (w.b - w.a) * zoom) }}
                           title={`${name} · ${framesToTimecode(w.b - w.a, seq.fps)}${!w.B ? ' · kapanış' : !w.A ? ' · açılış' : ''}\nÇift tık: süre · Delete: kaldır`}
-                          onMouseDown={(e) => { e.stopPropagation(); useStore.setState({ selection: [w.owner.id], selTransition: key, leftTab: 'fx', focus: 'timeline' }); }}
+                          onMouseDown={(e) => { e.stopPropagation(); if (e.button !== 0) return; useStore.setState({ selection: [w.owner.id], selTransition: key, leftTab: 'fx', focus: 'timeline' }); }}
+                          onContextMenu={(e) => transitionMenu(e, w.owner, w.side, w.b - w.a)}
                           onDoubleClick={(e) => {
                             e.stopPropagation();
                             const v = window.prompt('Geçiş süresi (saniye)', ((w.b - w.a) / seq.fps).toFixed(2));
@@ -657,7 +660,7 @@ function TrackHeader({ track, y }: { track: Track; y: number }) {
   const toggle = (label: string, fn: (t: Track) => void) => edit(label, (s) => { fn(s.tracks.find((x) => x.id === track.id)!); });
   const isV = track.kind === 'video';
   return (
-    <div className={`track-header kind-${track.kind}`} style={{ position: 'absolute', top: y, height: track.height, left: 0, right: 0 }}>
+    <div className={`track-header kind-${track.kind}`} style={{ position: 'absolute', top: y, height: track.height, left: 0, right: 0 }} onContextMenu={(e) => trackMenu(e, track)}>
       <div className={`tname ${track.targeted ? 'target' : ''}`} title="Hedef iz (kaynak düzenlemeleri buraya gelir)" onClick={() => edit('Hedef iz', (s) => ops.targetTrack(s, track.id))}>{track.name}</div>
       <button className={`icon-btn ${track.locked ? 'on' : ''}`} title="İzi kilitle" onClick={() => toggle('İz kilidi', (t) => { t.locked = !t.locked; })}>{track.locked ? I.lock : I.unlock}</button>
       <button className={`icon-btn ${track.syncLock ? 'on' : ''}`} title="Senkron kilidi" onClick={() => toggle('Senkron kilidi', (t) => { t.syncLock = !t.syncLock; })}>{I.sync}</button>
@@ -730,7 +733,7 @@ const ClipView = memo(function ClipView({ clip, zoom, height, selected, tool, on
   }
   return (
     <div className={`clip ${kind} ${selected ? 'sel' : ''} ${clip.enabled ? '' : 'disabled'} ${media && !media.online ? 'offline' : ''}`}
-      style={{ left, width, cursor }} onMouseDown={(e) => onMouseDown(e, clip, null)}
+      style={{ left, width, cursor }} onMouseDown={(e) => onMouseDown(e, clip, null)} onContextMenu={(e) => clipMenu(e, clip)}
       title={`${clip.name}\n${framesToTimecode(clip.start, fps)} → ${framesToTimecode(clipEnd(clip), fps)} (${framesToTimecode(clip.duration, fps)})${clip.speed !== 1 ? `\nHız %${Math.round(clip.speed * 100)}` : ''}`}>
       <div className="cname">{clip.name}{clip.speed !== 1 && <span className="speed">%{Math.round(clip.speed * 100)}</span>}</div>
       {hasFx && <div className="fx">fx</div>}

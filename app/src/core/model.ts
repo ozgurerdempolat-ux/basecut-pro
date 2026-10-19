@@ -67,7 +67,34 @@ export type LabelColor =
 export interface Keyframe {
   frame: number; // relative to clip start
   value: number;
-  ease: 'linear' | 'hold' | 'ease';
+  /** interpolation of the segment that starts at this keyframe */
+  ease: KeyEase;
+}
+
+/**
+ * linear · hold (step) · ease (slow out and in) · in (slow arrival at the next key)
+ * · out (slow departure from this key) · fast (punchy: quick, then settles)
+ */
+export type KeyEase = 'linear' | 'hold' | 'ease' | 'in' | 'out' | 'fast';
+export const KEY_EASES: { id: KeyEase; name: string }[] = [
+  { id: 'linear', name: 'Doğrusal' },
+  { id: 'ease', name: 'Yumuşak (giriş + çıkış)' },
+  { id: 'out', name: 'Yavaş çıkış (hızlanarak)' },
+  { id: 'in', name: 'Yavaş varış (yavaşlayarak)' },
+  { id: 'fast', name: 'Sert (hızlı başla, yumuşak otur)' },
+  { id: 'hold', name: 'Sabit (sıçrama)' },
+];
+
+/** shaped progress for a segment, t in 0..1 */
+export function easeT(e: KeyEase, t: number): number {
+  switch (e) {
+    case 'ease': return t * t * (3 - 2 * t);
+    case 'out': return t * t;
+    case 'in': return 1 - (1 - t) * (1 - t);
+    case 'fast': return 1 - Math.pow(1 - t, 4);
+    case 'hold': return 0;
+    default: return t;
+  }
 }
 
 export interface AnimatableParam {
@@ -110,6 +137,8 @@ export interface Clip {
   transOut?: import('./fx').TransitionSpec;
   /** audio effects (audio clips) */
   audioFx?: import('./audiofx').AudioEffect[];
+  /** frame hold: the clip shows this source time (seconds) as a still, silent */
+  freeze?: number;
 }
 
 export interface Marker {
@@ -220,6 +249,7 @@ export function clipSrcOut(c: Clip, fps: number): number {
 /** source time (seconds) shown at timeline frame f, or null if f is outside the clip */
 export function sourceTimeAt(c: Clip, f: number, fps: number): number | null {
   if (f < c.start || f >= clipEnd(c)) return null;
+  if (c.freeze !== undefined) return c.freeze;
   const local = (f - c.start) / fps;
   if (c.speed >= 0) return c.srcIn + local * c.speed;
   return clipSrcOut(c, fps) - local * Math.abs(c.speed);
@@ -251,9 +281,7 @@ export function evalParam(p: AnimatableParam, frame: number): number {
     const a = k[i], b = k[i + 1];
     if (frame >= a.frame && frame < b.frame) {
       if (a.ease === 'hold') return a.value;
-      let t = (frame - a.frame) / (b.frame - a.frame);
-      if (a.ease === 'ease') t = t * t * (3 - 2 * t);
-      return a.value + (b.value - a.value) * t;
+      return a.value + (b.value - a.value) * easeT(a.ease, (frame - a.frame) / (b.frame - a.frame));
     }
   }
   return last.value;

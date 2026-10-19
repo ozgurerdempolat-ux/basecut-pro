@@ -5,7 +5,7 @@
 
 import {
   Clip, Id, MediaItem, Sequence, Track, clipEnd, clipSrcOut, clipSrcSpan, clipsOnTrack,
-  defaultTransform, makeTrack, newId, param, tracksOfKind,
+  defaultTransform, makeTrack, newId, param, sourceTimeAt, tracksOfKind,
 } from './model';
 
 export class EditError extends Error {}
@@ -674,4 +674,53 @@ export function rippleTrimToPlayhead(s: Sequence, media: Record<Id, MediaItem>, 
     trimEdge(s, media, c.id, 'in', d, 'ripple');
     s.playhead = c.start;
   }
+}
+
+// ------------------------------------------------------------------ frame hold
+
+/**
+ * Frame hold at `frame` on the given video clips.
+ * - 'after': the rest of the clip becomes a still of that frame (Add Frame Hold)
+ * - 'segment': a still of `holdFrames` is inserted there and everything after ripples (Insert Frame Hold Segment)
+ * - 'whole': the whole clip becomes a still of that frame
+ * The linked audio of the held part is removed (a hold is silent).
+ */
+export function frameHold(s: Sequence, clipIds: Id[], frame: number, mode: 'after' | 'segment' | 'whole', holdFrames = 0): Id[] {
+  const out: Id[] = [];
+  const targets = clipIds.map((id) => s.clips[id]).filter((c): c is Clip => !!c && c.stream === 'video' && frame >= c.start && frame < clipEnd(c));
+  for (const c0 of targets) {
+    assertUnlocked(s, c0.trackId);
+    const t = sourceTimeAt(c0, frame, s.fps)!;
+    if (mode === 'whole') {
+      c0.freeze = t;
+      for (const a of Object.values(s.clips)) if (a.linkId && a.linkId === c0.linkId && a.stream === 'audio') delete s.clips[a.id];
+      c0.linkId = null;
+      out.push(c0.id);
+      continue;
+    }
+    if (mode === 'segment') {
+      const tracks = rippleTracks(s, [c0.trackId]);
+      splitAt(s, frame, tracks);
+      shiftFrom(s, tracks, frame, holdFrames);
+      const hold = cloneClip(c0);
+      hold.id = newId('clip');
+      hold.start = frame; hold.duration = holdFrames; hold.freeze = t; hold.linkId = null;
+      delete hold.transIn; delete hold.transOut;
+      hold.transform = JSON.parse(JSON.stringify(c0.transform));
+      for (const k of Object.values(hold.transform)) k.keyframes = [];
+      s.clips[hold.id] = hold;
+      out.push(hold.id);
+      continue;
+    }
+    // 'after'
+    const linked = Object.values(s.clips).filter((x) => x.linkId && x.linkId === c0.linkId);
+    const created = splitAt(s, frame, [...new Set([c0.trackId, ...linked.map((x) => x.trackId)])]);
+    for (const id of created) {
+      const r = s.clips[id];
+      if (!r || r.start !== frame) continue;
+      if (r.stream === 'audio' && linked.some((x) => x.trackId === r.trackId)) { delete s.clips[id]; continue; }
+      if (r.trackId === c0.trackId && r.stream === 'video') { r.freeze = t; r.linkId = null; out.push(r.id); }
+    }
+  }
+  return out;
 }

@@ -327,3 +327,32 @@ select.mini { background: var(--bg-2); border: 1px solid var(--line); border-rad
 .mixer > * { flex-shrink: 0; }
 .mixer { overflow-y: auto; }
 .mix-meter { border: 1px solid var(--line); }
+
+/* ---- context menus */
+.ctx-menu { position: fixed; z-index: 1000; min-width: 210px; max-width: 320px; padding: 4px; background: #23262c; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; box-shadow: 0 12px 32px rgba(0,0,0,0.55); font-size: 12px; user-select: none; }
+.ctx-item { position: relative; display: flex; align-items: center; gap: 6px; padding: 5px 8px 5px 4px; border-radius: 5px; cursor: default; color: var(--text); white-space: nowrap; }
+.ctx-item.hi, .ctx-item:hover { background: var(--accent, #ff6a3d); color: #fff; }
+.ctx-item.disabled { color: var(--text-3); pointer-events: none; }
+.ctx-item.danger { color: #ff7b7b; }
+.ctx-item.danger:hover, .ctx-item.danger.hi { color: #fff; background: #d9534f; }
+.ctx-check { width: 14px; text-align: center; font-size: 11px; }
+.ctx-label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.ctx-kbd { color: inherit; opacity: 0.6; font: 11px var(--mono); }
+.ctx-arrow { opacity: 0.7; font-size: 10px; }
+.ctx-sep { height: 1px; margin: 4px 6px; background: rgba(255,255,255,0.1); }
+.ctx-sub { position: absolute; left: 100%; top: -5px; }
+.ctx-sub.flip { left: auto; right: 100%; }
+.ctx-sub { max-height: 70vh; overflow-y: auto; }
+
+/* ---- keyframe lane under an animated property */
+.key-lane { position: relative; height: 16px; margin: 0 10px 4px 28px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 3px; cursor: pointer; }
+.key-ph { position: absolute; top: -1px; bottom: -1px; width: 1px; background: #ff5a4a; pointer-events: none; }
+.key-seg { position: absolute; top: 7px; height: 1px; background: rgba(255,255,255,0.25); pointer-events: none; }
+.key-seg.e-ease, .key-seg.e-in, .key-seg.e-out, .key-seg.e-fast { background: rgba(108,196,255,0.6); }
+.key-seg.e-hold { background: repeating-linear-gradient(90deg, rgba(255,255,255,0.35) 0 3px, transparent 3px 6px); }
+.key-dot { position: absolute; top: 3px; width: 9px; height: 9px; margin-left: -4.5px; background: #cfd3da; transform: rotate(45deg); cursor: ew-resize; border: 1px solid #111; }
+.key-dot.on { background: var(--sel, #ffd166); }
+.key-dot.e-ease, .key-dot.e-fast { border-radius: 50%; transform: none; }
+.key-dot.e-in { border-radius: 0 50% 50% 0; transform: none; }
+.key-dot.e-out { border-radius: 50% 0 0 50%; transform: none; }
+.key-dot.e-hold { transform: none; border-radius: 1px; }

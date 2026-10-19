@@ -1,176 +1,176 @@
 feature,area,priority,original,clone,notes
-Home screen with recent projects,shell,must,yes,no,S01
-New project with name and location,project,must,yes,no,S02
-Open / save / save as / save a copy,project,must,yes,no,Ctrl+O/S/Shift+S/Alt+S
-Auto save every N minutes with N versions kept,project,must,yes,no,F18
-Crash recovery on relaunch,project,must,yes,no,F18
-Open documented project file format (JSON/SQLite),project,must,no,no,ours; not .prproj
+Home screen with recent projects,shell,must,yes,partial,S01
+New project with name and location,project,must,yes,yes,S02
+Open / save / save as / save a copy,project,must,yes,yes,Ctrl+O/S/Shift+S/Alt+S
+Auto save every N minutes with N versions kept,project,must,yes,yes,F18
+Crash recovery on relaunch,project,must,yes,yes,F18
+Open documented project file format (JSON/SQLite),project,must,no,yes,ours; not .prproj
 Project settings: GPU vs software renderer,project,should,yes,no,S15
 Scratch disk locations,project,should,yes,no,S15
 Multiple projects open at once,project,could,yes,no,
 Productions (multi-project folder linking),project,could,yes,no,S53
-Undo / redo every operation,project,must,yes,no,Ctrl+Z / Ctrl+Shift+Z
+Undo / redo every operation,project,must,yes,yes,Ctrl+Z / Ctrl+Shift+Z
 History panel with step back/forward,project,should,yes,no,S26
-Import files via dialog,media,must,yes,no,Ctrl+I
-Import by drag-and-drop from OS,media,must,yes,no,
+Import files via dialog,media,must,yes,yes,Ctrl+I
+Import by drag-and-drop from OS,media,must,yes,yes,
 Import mode with folder browser and selection tray,media,should,yes,no,S02
-Create sequence from selected clips on import,media,must,yes,no,F01
+Create sequence from selected clips on import,media,must,yes,yes,F01
 Copy media to project folder on import,media,should,yes,no,
 Media Browser with camera-card awareness,media,should,yes,no,S08
 Image sequence import,media,should,yes,no,
-Still image import (PNG/JPG/PSD-flattened/TIFF/HEIC/WebP),media,must,yes,no,
+Still image import (PNG/JPG/PSD-flattened/TIFF/HEIC/WebP),media,must,yes,yes,
 Layered PSD import as sequence,media,could,yes,no,
-Audio import (WAV/AIFF/MP3/AAC/FLAC),media,must,yes,no,
+Audio import (WAV/AIFF/MP3/AAC/FLAC),media,must,yes,yes,
 Bins: create / nest / rename / delete,media,must,yes,no,S06
-Project panel list view with sortable columns,media,must,yes,no,
-Project panel icon view with thumbnails,media,must,yes,no,
+Project panel list view with sortable columns,media,must,yes,yes,
+Project panel icon view with thumbnails,media,must,yes,yes,
 Freeform project view,media,could,yes,no,
 Hover scrub thumbnails,media,should,yes,no,Shift+H
-Search/filter in project panel,media,must,yes,no,
+Search/filter in project panel,media,must,yes,yes,
 Label colors on items,media,should,yes,no,
 Metadata panel (clip/file/XMP),media,could,yes,no,S09
-Offline media detection,media,must,yes,no,red offline frame
-Link media / relink with auto-find in folder,media,must,yes,no,S13 F17
+Offline media detection,media,must,yes,yes,red offline frame
+Link media / relink with auto-find in folder,media,must,yes,partial,S13 F17
 Replace footage,media,should,yes,no,
 Subclips,media,should,yes,no,
-Synthetic items: color matte / bars & tone / black video / transparent video / countdown,media,should,yes,no,
+Synthetic items: color matte / bars & tone / black video / transparent video / countdown,media,should,yes,partial,
 Adjustment layer,media,must,yes,no,
 Ingest presets: copy / transcode / proxies,media,should,yes,no,S14
-Create proxies on demand,media,should,yes,no,F15
-Toggle proxies in monitor,media,should,yes,no,
+Create proxies on demand,media,should,yes,yes,F15
+Toggle proxies in monitor,media,should,yes,yes,
 Attach existing proxies,media,could,yes,no,
 Interpret footage (fps / PAR / fields / alpha / color space),media,should,yes,no,
-Media cache with clear-cache UI,media,must,yes,no,S58
-Audio peak file (waveform) generation,media,must,yes,no,
-Variable-frame-rate phone video handled without desync,media,must,partial,no,known pain point
-Decode H.264 / HEVC 8- and 10-bit,engine,must,yes,no,HW decode
-Decode ProRes,engine,must,yes,no,
+Media cache with clear-cache UI,media,must,yes,yes,S58
+Audio peak file (waveform) generation,media,must,yes,yes,
+Variable-frame-rate phone video handled without desync,media,must,partial,yes,known pain point
+Decode H.264 / HEVC 8- and 10-bit,engine,must,yes,yes,HW decode
+Decode ProRes,engine,must,yes,yes,
 Decode DNxHD/HR,engine,should,yes,no,
 Decode AV1 / VP9,engine,should,yes,no,
 Decode camera RAW (BRAW/R3D/ARRIRAW/CinemaDNG),engine,could,yes,skip,vendor SDK licensing per format
 Decode log + HDR (HLG/PQ) footage,engine,should,yes,no,
-Hardware-accelerated decode (NVDEC/VideoToolbox/QSV/AMF),engine,must,yes,no,
-Real-time multi-track GPU playback,engine,must,yes,no,hard part #1
-Playback resolution full / 1/2 / 1/4 / 1/8,engine,must,yes,no,Ctrl+0/2/4/8
+Hardware-accelerated decode (NVDEC/VideoToolbox/QSV/AMF),engine,must,yes,partial,
+Real-time multi-track GPU playback,engine,must,yes,partial,hard part #1
+Playback resolution full / 1/2 / 1/4 / 1/8,engine,must,yes,yes,Ctrl+0/2/4/8
 High-quality playback toggle,engine,could,yes,no,
 Dropped-frame indicator,engine,should,yes,no,
 Render previews (Enter) with red/yellow/green bar,engine,must,yes,no,
 Render in-to-out / selection / audio,engine,should,yes,no,
 32-bit float processing,engine,should,yes,no,
 Background auto-render while idle,engine,could,no,no,improvement
-Source Monitor with In/Out marking,monitor,must,yes,no,S16
-Program Monitor,monitor,must,yes,no,S17
+Source Monitor with In/Out marking,monitor,must,yes,yes,S16
+Program Monitor,monitor,must,yes,yes,S17
 Reference Monitor,monitor,could,yes,no,S18
-J-K-L shuttle with speed steps,monitor,must,yes,no,
-Frame step / 5-frame step,monitor,must,yes,no,
+J-K-L shuttle with speed steps,monitor,must,yes,yes,
+Frame step / 5-frame step,monitor,must,yes,yes,
 Play in to out / play around,monitor,should,yes,no,
-Timecode display and entry (DF/NDF/frames),monitor,must,yes,no,
-Zoom / fit in monitor,monitor,must,yes,no,
+Timecode display and entry (DF/NDF/frames),monitor,must,yes,yes,
+Zoom / fit in monitor,monitor,must,yes,yes,
 Safe margins and guides/rulers overlay,monitor,should,yes,no,
 Transform handles directly in Program Monitor,monitor,must,yes,no,
 Comparison view (side-by-side / split / vertical),monitor,should,yes,no,
 Drag video-only / audio-only from Source,monitor,should,yes,no,
 Button editor (customize transport),monitor,could,yes,no,
-Export frame,monitor,must,yes,no,Ctrl+Shift+E
+Export frame,monitor,must,yes,yes,Ctrl+Shift+E
 Full-screen playback and external display output,monitor,should,yes,no,S22
-Timeline with unlimited video and audio tracks,timeline,must,yes,no,S23
-Add / delete / rename tracks,timeline,must,yes,no,
-Track lock / sync lock / output toggle / mute / solo,timeline,must,yes,no,
-Track targeting and source patching,timeline,must,yes,no,
+Timeline with unlimited video and audio tracks,timeline,must,yes,yes,S23
+Add / delete / rename tracks,timeline,must,yes,yes,
+Track lock / sync lock / output toggle / mute / solo,timeline,must,yes,yes,
+Track targeting and source patching,timeline,must,yes,yes,
 Mono / stereo / 5.1 / adaptive audio tracks,timeline,should,yes,no,
-Insert edit,timeline,must,yes,no,","
-Overwrite edit,timeline,must,yes,no,.
+Insert edit,timeline,must,yes,yes,","
+Overwrite edit,timeline,must,yes,yes,.
 Three-point and four-point editing incl. fit to fill,timeline,should,yes,no,
-Lift and extract,timeline,must,yes,no,; and '
-Ripple delete,timeline,must,yes,no,Shift+Del
-Close all gaps,timeline,should,yes,no,
-Add edit at playhead (one / all tracks),timeline,must,yes,no,Ctrl+K / Ctrl+Shift+K
-Ripple trim previous/next edit to playhead,timeline,must,yes,no,Q/W
+Lift and extract,timeline,must,yes,yes,; and '
+Ripple delete,timeline,must,yes,yes,Shift+Del
+Close all gaps,timeline,should,yes,yes,
+Add edit at playhead (one / all tracks),timeline,must,yes,yes,Ctrl+K / Ctrl+Shift+K
+Ripple trim previous/next edit to playhead,timeline,must,yes,yes,Q/W
 Extend edit to playhead,timeline,should,yes,no,E
-Linked selection of A/V with link/unlink,timeline,must,yes,no,
+Linked selection of A/V with link/unlink,timeline,must,yes,yes,
 Out-of-sync offset indicator with fix,timeline,should,yes,no,
-Snapping toggle,timeline,must,yes,no,S
-Zoom timeline / zoom to sequence / scroll bar,timeline,must,yes,no,
-Track height expand / collapse,timeline,must,yes,no,
-Video thumbnails and audio waveforms on clips,timeline,must,yes,no,
+Snapping toggle,timeline,must,yes,yes,S
+Zoom timeline / zoom to sequence / scroll bar,timeline,must,yes,yes,
+Track height expand / collapse,timeline,must,yes,yes,
+Video thumbnails and audio waveforms on clips,timeline,must,yes,yes,
 Clip labels and renaming in timeline,timeline,should,yes,no,
-Enable / disable clip,timeline,must,yes,no,
+Enable / disable clip,timeline,must,yes,yes,
 Group / ungroup clips,timeline,should,yes,no,Ctrl+G
-Nudge / slide / slip clips by 1 and 5 frames,timeline,should,yes,no,Alt+arrows
+Nudge / slide / slip clips by 1 and 5 frames,timeline,should,yes,yes,Alt+arrows
 Copy / paste / paste insert / paste attributes,timeline,must,yes,no,
 Remove attributes,timeline,should,yes,no,
 Duplicate detection highlighting,timeline,could,yes,no,
 Nested sequences (nest / open / reveal),timeline,must,yes,no,
 Multiple sequences as tabs,timeline,must,yes,no,
 Work area bar,timeline,could,yes,no,
-Markers: add / edit / colors / duration / types,timeline,must,yes,no,M
+Markers: add / edit / colors / duration / types,timeline,must,yes,partial,M
 Markers panel,timeline,should,yes,no,S27
 Match frame / reverse match frame,timeline,should,yes,no,F
 Scene edit detection,timeline,should,yes,no,S33
-Selection tool,tools,must,yes,no,V
-Track select forward / backward,tools,must,yes,no,A / Shift+A
-Ripple edit tool,tools,must,yes,no,B
-Rolling edit tool,tools,must,yes,no,N
-Rate stretch tool,tools,must,yes,no,R
-Razor tool (single / all tracks),tools,must,yes,no,C
-Slip tool,tools,must,yes,no,Y
-Slide tool,tools,must,yes,no,U
+Selection tool,tools,must,yes,yes,V
+Track select forward / backward,tools,must,yes,yes,A / Shift+A
+Ripple edit tool,tools,must,yes,yes,B
+Rolling edit tool,tools,must,yes,yes,N
+Rate stretch tool,tools,must,yes,yes,R
+Razor tool (single / all tracks),tools,must,yes,yes,C
+Slip tool,tools,must,yes,yes,Y
+Slide tool,tools,must,yes,yes,U
 Pen tool (keyframes and shapes),tools,must,yes,no,P
 Rectangle / ellipse / polygon shape tools,tools,should,yes,no,
 Hand tool,tools,must,yes,no,H
 Zoom tool,tools,must,yes,no,Z
-Type tool and vertical type tool,tools,must,yes,no,T
+Type tool and vertical type tool,tools,must,yes,yes,T
 Trim mode with trim monitor,trim,should,yes,no,S19
 Dynamic trimming with J-K-L,trim,could,yes,no,
 Trim numeric entry,trim,should,yes,no,
 Asymmetric trimming,trim,could,yes,no,
-Speed/Duration dialog with reverse and maintain pitch,speed,must,yes,no,Ctrl+R
-Time interpolation: frame sampling / blending / optical flow,speed,should,yes,no,
+Speed/Duration dialog with reverse and maintain pitch,speed,must,yes,yes,Ctrl+R
+Time interpolation: frame sampling / blending / optical flow,speed,should,yes,partial,
 Time remapping with speed ramps,speed,must,yes,no,S30
 Freeze frame (frame hold / hold segment),speed,must,yes,no,
 Multi-camera source sequence (sync by timecode/audio/in/marker),multicam,must,yes,no,F13
 Multi-camera live switching in monitor,multicam,must,yes,no,S20
 Up to 16 angles,multicam,should,yes,no,
 Flatten multicam,multicam,should,yes,no,
-Effect Controls panel with intrinsic Motion/Opacity/Volume,effects,must,yes,no,S36
-Keyframes with stopwatch per property,effects,must,yes,no,
+Effect Controls panel with intrinsic Motion/Opacity/Volume,effects,must,yes,yes,S36
+Keyframes with stopwatch per property,effects,must,yes,yes,
 Keyframe interpolation linear / bezier / auto / continuous / hold,effects,must,yes,no,
 Ease in / ease out,effects,must,yes,no,
 Speed and value graph editing,effects,should,yes,no,
 Copy/paste keyframes and effects across clips,effects,must,yes,no,
 Effect presets save / apply,effects,should,yes,no,
-Effects panel with search and custom bins,effects,must,yes,no,S35
-Effect bypass toggle,effects,must,yes,no,
+Effects panel with search and custom bins,effects,must,yes,yes,S35
+Effect bypass toggle,effects,must,yes,yes,
 Blend modes on opacity,effects,must,yes,no,
 Masks: ellipse / polygon / free bezier,effects,must,yes,no,
 Mask feather / expansion / opacity / invert,effects,must,yes,no,
 Mask tracking forward / backward,effects,should,yes,no,
 Adjust effects bin,effects-lib,should,yes,no,
-Blur & sharpen effects (Gaussian / directional / camera blur / unsharp / sharpen),effects-lib,must,yes,no,
+Blur & sharpen effects (Gaussian / directional / camera blur / unsharp / sharpen),effects-lib,must,yes,yes,
 Channel effects,effects-lib,could,yes,no,
 Color correction effects,effects-lib,should,yes,no,
 Distort effects (warp stabilizer / lens distortion / corner pin / offset / mirror / twirl / wave warp / rolling shutter repair),effects-lib,must,yes,no,
 Warp stabilizer,effects-lib,must,yes,no,critical for phone footage
 Generate effects (4-color gradient / ramp / lens flare / lightning / circle / grid),effects-lib,should,yes,no,
-Image control effects (B&W / color pass / color replace / gamma),effects-lib,should,yes,no,
+Image control effects (B&W / color pass / color replace / gamma),effects-lib,should,yes,yes,
 Immersive (VR 360) effects,effects-lib,could,yes,no,
-Keying: Ultra-key style chroma key,effects-lib,must,yes,no,
+Keying: Ultra-key style chroma key,effects-lib,must,yes,yes,
 Keying: luma / track matte / alpha adjust,effects-lib,must,yes,no,
-Noise & grain effects,effects-lib,should,yes,no,
+Noise & grain effects,effects-lib,should,yes,yes,
 Perspective effects (basic 3D / drop shadow / bevel),effects-lib,should,yes,no,
-Stylize effects (glow / mosaic / posterize / find edges / strobe / roughen edges),effects-lib,should,yes,no,
+Stylize effects (glow / mosaic / posterize / find edges / strobe / roughen edges),effects-lib,should,yes,yes,
 Time effects (echo / posterize time),effects-lib,could,yes,no,
 Transform effects (crop / flip / transform / auto reframe),effects-lib,must,yes,no,
 Utility effects (cineon converter / timecode / clip name),effects-lib,could,yes,no,
-Video transitions: cross dissolve / dip to black / dip to white / film dissolve / morph cut,transitions,must,yes,no,
-Video transitions: slide / push / wipe / iris / zoom / page peel / 3D motion,transitions,should,yes,no,
+Video transitions: cross dissolve / dip to black / dip to white / film dissolve / morph cut,transitions,must,yes,yes,
+Video transitions: slide / push / wipe / iris / zoom / page peel / 3D motion,transitions,should,yes,yes,
 Morph cut (jump cut smoothing),transitions,should,yes,no,
-Default transition with Ctrl+D,transitions,must,yes,no,
-Transition duration / alignment / reverse / border,transitions,must,yes,no,
-Audio transitions: constant power / constant gain / exponential fade,transitions,must,yes,no,
-Text: type in Program Monitor,graphics,must,yes,no,F07
-Text styling: font / size / weight / tracking / kerning / leading / alignment,graphics,must,yes,no,
-Fill / multiple strokes / background box / multiple shadows,graphics,must,yes,no,
+Default transition with Ctrl+D,transitions,must,yes,yes,
+Transition duration / alignment / reverse / border,transitions,must,yes,partial,
+Audio transitions: constant power / constant gain / exponential fade,transitions,must,yes,yes,
+Text: type in Program Monitor,graphics,must,yes,partial,F07
+Text styling: font / size / weight / tracking / kerning / leading / alignment,graphics,must,yes,partial,
+Fill / multiple strokes / background box / multiple shadows,graphics,must,yes,partial,
 Text styles save / apply / sync,graphics,should,yes,no,
 Shapes in graphics layers,graphics,must,yes,no,
 Images inside graphics layers,graphics,should,yes,no,
@@ -182,23 +182,23 @@ Graphics templates panel with own template format,graphics,should,yes,no,S38 (ou
 Import .mogrt templates,graphics,could,yes,skip,proprietary format
 Text panel: Graphics tab layer list,graphics,should,yes,no,
 Font browser with system fonts and favorites,graphics,must,yes,no,
-Speech-to-text transcription (multi-language incl. Turkish),ai,must,yes,no,F05
+Speech-to-text transcription (multi-language incl. Turkish),ai,must,yes,yes,F05
 Speaker detection and labels,ai,should,yes,no,
 Text-based editing: delete / extract / insert from transcript,ai,must,yes,no,
 Remove pauses and filler words in transcript,ai,must,yes,no,
 Transcript search,ai,must,yes,no,
-Create captions from transcript,captions,must,yes,no,F06
+Create captions from transcript,captions,must,yes,yes,F06
 Caption tracks (subtitle / CEA-608 / CEA-708 / open),captions,should,yes,no,
-Caption style editing and saved styles,captions,must,partial,no,broken in 25.0 per source #14
-Caption line length / lines / gap settings,captions,must,yes,no,
+Caption style editing and saved styles,captions,must,partial,yes,broken in 25.0 per source #14
+Caption line length / lines / gap settings,captions,must,yes,yes,
 Translate captions,captions,should,yes,no,
-Import / export SRT / VTT / SCC,captions,must,yes,no,
-Burn-in captions on export,captions,must,yes,no,
-Animated word-by-word social captions,captions,must,no,no,improvement: CapCut-style; Premiere lacks natively
+Import / export SRT / VTT / SCC,captions,must,yes,yes,
+Burn-in captions on export,captions,must,yes,yes,
+Animated word-by-word social captions,captions,must,no,yes,improvement: CapCut-style; Premiere lacks natively
 Auto reframe sequence (9:16 / 1:1 / 4:5 / 16:9),ai,must,yes,no,S32
-Auto reframe effect per clip,ai,should,yes,no,
-Enhance speech,ai,must,yes,no,
-Auto color (one-click),ai,should,yes,no,
+Auto reframe effect per clip,ai,should,yes,yes,
+Enhance speech,ai,must,yes,yes,
+Auto color (one-click),ai,should,yes,yes,
 Color match between shots with face detection,ai,should,yes,no,
 Media Intelligence: natural-language visual search across footage,ai,should,yes,no,S10
 Similar-visuals search,ai,could,yes,no,
@@ -207,63 +207,63 @@ Generative extend (video frames + audio),ai-gen,could,yes,no,third-party model; 
 Generate music,ai-gen,could,yes,no,third-party model; P8
 Generative media (images / b-roll),ai-gen,could,yes,no,third-party model; P8
 Object mask / AI rotoscoping,ai,should,yes,no,
-Color panel: Basic correction (WB picker / temp / tint / exposure / contrast / highlights / shadows / whites / blacks / saturation),color,must,yes,no,S39
-Color panel: input LUT,color,must,yes,no,
-Color panel: Creative look LUT + intensity / faded film / sharpen / vibrance / tints,color,must,yes,no,
+Color panel: Basic correction (WB picker / temp / tint / exposure / contrast / highlights / shadows / whites / blacks / saturation),color,must,yes,yes,S39
+Color panel: input LUT,color,must,yes,yes,
+Color panel: Creative look LUT + intensity / faded film / sharpen / vibrance / tints,color,must,yes,yes,
 Color panel: RGB and per-channel curves,color,must,yes,no,
 Color panel: hue vs sat / hue vs hue / hue vs luma / luma vs sat / sat vs sat curves,color,must,yes,no,
-Color panel: shadows / midtones / highlights wheels,color,must,yes,no,
+Color panel: shadows / midtones / highlights wheels,color,must,yes,yes,
 Color panel: HSL secondary keyer with refine and correction,color,must,yes,no,
-Color panel: vignette,color,must,yes,no,
+Color panel: vignette,color,must,yes,yes,
 Multiple color-grade instances per clip,color,should,yes,no,
 Export .cube LUT from grade,color,should,yes,no,
-Scopes: waveform / RGB parade / vectorscope HLS+YUV / histogram,color,must,yes,no,S21
+Scopes: waveform / RGB parade / vectorscope HLS+YUV / histogram,color,must,yes,yes,S21
 Color management: working space Rec.709 / Rec.2100 PQ / HLG,color,should,yes,no,S40
 Auto-detect log footage and apply input transform,color,should,yes,no,
 Tone mapping HDR to SDR,color,should,yes,no,
 Bundled starter LUT set,color,should,yes,skip,Adobe's LUTs are theirs; we ship our own
 Audio clip volume and gain dialog,audio,must,yes,no,G
-Normalize peak / match loudness,audio,must,yes,no,
-Audio Track Mixer with faders / pan / meters,audio,must,yes,no,S41
+Normalize peak / match loudness,audio,must,yes,yes,
+Audio Track Mixer with faders / pan / meters,audio,must,yes,yes,S41
 Track automation read / latch / touch / write,audio,should,yes,no,
 Submixes and sends,audio,should,yes,no,
 Audio Clip Mixer,audio,could,yes,no,S42
-Audio meters with clip indicator,audio,must,yes,no,S44
+Audio meters with clip indicator,audio,must,yes,yes,S44
 LUFS loudness meter,audio,must,yes,no,
 Audio type tagging (dialogue / music / SFX / ambience),audio,must,yes,no,S43
-Dialogue repair: reduce noise / rumble / hum / reverb / de-ess,audio,must,yes,no,
-Auto ducking of music under dialogue,audio,must,yes,no,
+Dialogue repair: reduce noise / rumble / hum / reverb / de-ess,audio,must,yes,yes,
+Auto ducking of music under dialogue,audio,must,yes,yes,
 Remix music to target duration,audio,should,yes,no,
-Audio effects library: EQ (parametric / graphic) / compressor / limiter / dynamics / delay / reverb / pitch shifter / DeNoise / DeReverb / channel tools,audio,must,yes,no,
+Audio effects library: EQ (parametric / graphic) / compressor / limiter / dynamics / delay / reverb / pitch shifter / DeNoise / DeReverb / channel tools,audio,must,yes,yes,
 Audio keyframes via rubber band and pen,audio,must,yes,no,
-Voice-over recording to track,audio,should,yes,no,S46
+Voice-over recording to track,audio,should,yes,yes,S46
 Audio hardware input/output selection,audio,must,yes,no,
 Scrub audio,audio,should,yes,no,
 VST3 / AU plugin hosting,audio,could,yes,no,
 OFX video plugin hosting,effects,could,no,no,Premiere uses its own SDK; OFX is open
 Third-party plugins themselves,effects,could,yes,skip,others' products
-Export mode with destinations,export,must,yes,no,S04
-Export H.264 / HEVC MP4,export,must,yes,no,
+Export mode with destinations,export,must,yes,yes,S04
+Export H.264 / HEVC MP4,export,must,yes,yes,
 Export ProRes / DNxHR MOV/MXF,export,should,yes,no,codec licensing check
 Export AV1,export,could,yes,no,
-Export audio-only (WAV / MP3 / AAC),export,must,yes,no,
-Export animated GIF / image sequence,export,should,yes,no,
-Export presets: match source high / medium bitrate / social presets,export,must,yes,no,
+Export audio-only (WAV / MP3 / AAC),export,must,yes,yes,
+Export animated GIF / image sequence,export,should,yes,yes,
+Export presets: match source high / medium bitrate / social presets,export,must,yes,yes,
 Bitrate CBR / VBR 1-pass / 2-pass,export,must,yes,no,
-Hardware encoding (NVENC / VideoToolbox / QSV / AMF),export,must,yes,no,
-Range: entire / in-out / work area / custom,export,must,yes,no,
-Export with captions burn-in or sidecar,export,must,yes,no,
+Hardware encoding (NVENC / VideoToolbox / QSV / AMF),export,must,yes,yes,
+Range: entire / in-out / work area / custom,export,must,yes,partial,
+Export with captions burn-in or sidecar,export,must,yes,yes,
 Export effects: LUT / image overlay / timecode / name overlay / loudness normalization / time tuner,export,should,yes,no,
 Estimated file size,export,should,yes,no,
-Quick export one-click,export,must,yes,no,S50
-Export queue / batch encode in background while editing,export,should,yes,no,S51
+Quick export one-click,export,must,yes,yes,S50
+Export queue / batch encode in background while editing,export,should,yes,partial,S51
 Direct publish to YouTube / TikTok / Instagram / Vimeo,export,should,yes,no,official APIs only
 Export XML / EDL / AAF / OpenTimelineIO,interchange,should,yes,no,F21
 Import XML / EDL / OTIO,interchange,should,yes,no,
 Import .prproj,interchange,could,no,skip,proprietary; legal risk
 Dynamic Link to After Effects / Audition / Photoshop,interchange,could,yes,skip,those apps aren't ours
 Project Manager: collect / consolidate / trim with handles,project,should,yes,no,S12
-Docking panel system with tabs / floating / maximize,ui,must,yes,no,
+Docking panel system with tabs / floating / maximize,ui,must,yes,partial,
 Predefined workspaces (Editing / Color / Audio / Effects / Graphics / Captions / Assembly),ui,must,yes,no,S05
 Save / reset custom workspaces,ui,must,yes,no,
 Dark UI with brightness slider,ui,should,yes,no,
@@ -272,8 +272,8 @@ Keyboard shortcut editor with visual keyboard and conflict detection,ui,must,yes
 Premiere-style keymap preset,ui,must,no,no,lowers switching cost; functional mapping only
 FCP7 / Avid keymap presets,ui,could,yes,no,
 Preferences (~20 tabs),ui,must,yes,no,S54
-Context menus on every object,ui,must,yes,no,
-Localization: Turkish UI,ui,must,no,no,our market; Premiere TR exists but partial
+Context menus on every object,ui,must,yes,partial,
+Localization: Turkish UI,ui,must,no,yes,our market; Premiere TR exists but partial
 Localization: English UI,ui,must,yes,no,
 Accessibility: keyboard navigation / screen reader labels,ui,should,yes,no,
 Control surface support (MIDI / Eucon),ui,could,yes,no,
@@ -288,21 +288,21 @@ Creative Cloud Libraries sync,collab,could,yes,skip,Adobe service
 VR 180/360 editing and headset preview,vr,could,yes,no,
 HDR export (HDR10 / HLG metadata),export,could,yes,no,
 Capture from tape (HDV/DV),legacy,could,yes,skip,obsolete
-Windows build (.exe installer),platform,must,yes,no,
-macOS build (Apple Silicon + Intel .dmg),platform,must,yes,no,
+Windows build (.exe installer),platform,must,yes,yes,
+macOS build (Apple Silicon + Intel .dmg),platform,must,yes,yes,
 Auto-update,platform,must,yes,no,
 Licensing / activation for paid version,platform,could,yes,no,only if sold
 Crash reporting with opt-in,platform,should,yes,no,
-GPU fallback to software renderer,platform,must,yes,no,
-Crash isolation: decode/render in separate process so the editor never goes down,stability,must,no,no,X1 fixes.md
-Instant edit journal: every change on disk immediately; reopen exactly where you were,stability,must,no,no,X1 fixes.md
-Automatic background proxies for heavy footage,performance,must,no,no,X2 fixes.md
-Adaptive playback: drop resolution instead of dropping frames,performance,should,no,no,X2 fixes.md
-Preflight check before export with one-click fixes,export,should,no,no,X3 fixes.md
-Simple mode (guided one-screen editor) alongside Pro mode,ui,should,no,no,X4 fixes.md
+GPU fallback to software renderer,platform,must,yes,partial,
+Crash isolation: decode/render in separate process so the editor never goes down,stability,must,no,yes,X1 fixes.md
+Instant edit journal: every change on disk immediately; reopen exactly where you were,stability,must,no,yes,X1 fixes.md
+Automatic background proxies for heavy footage,performance,must,no,yes,X2 fixes.md
+Adaptive playback: drop resolution instead of dropping frames,performance,should,no,partial,X2 fixes.md
+Preflight check before export with one-click fixes,export,should,no,yes,X3 fixes.md
+Simple mode (guided one-screen editor) alongside Pro mode,ui,should,no,partial,X4 fixes.md
 Stable layouts: updates never force UI changes; roll back an update,platform,should,no,no,X6 fixes.md
-Move tracks up / down,timeline,should,no,no,X7 forum request
+Move tracks up / down,timeline,should,no,yes,X7 forum request
 Stabilize and speed-ramp same clip without nesting,effects,should,no,no,X7 forum request
 Waveforms visible in multicam clips,multicam,should,no,no,X7 forum request
 Output LUT slot at end of color chain,color,should,no,no,X7 forum request
-Offline-first: no account or internet needed to edit,platform,must,no,no,X8 fixes.md
+Offline-first: no account or internet needed to edit,platform,must,no,yes,X8 fixes.md

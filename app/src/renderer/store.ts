@@ -51,7 +51,7 @@ export interface State {
   toasts: Toast[];
   sys: SystemInfo | null;
   clipboard: Clip[] | null;
-  dialog: null | { kind: 'speed' | 'sequence' | 'shortcuts' | 'about' | 'recovery'; data?: unknown };
+  dialog: null | { kind: 'speed' | 'sequence' | 'shortcuts' | 'about' | 'recovery' | 'attributes'; data?: unknown };
 }
 
 const initialProject = (() => {

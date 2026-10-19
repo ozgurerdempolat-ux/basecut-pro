@@ -3,6 +3,7 @@ import { MediaItem, framesToTimecode, sequenceDuration } from '../core/model';
 import * as ops from '../core/ops';
 import { I } from './icons';
 import { player } from './player';
+import { programMenu } from './menus';
 import { committedSeq, edit, editProject, playbackPath, setPlayhead, setSeqField, useStore } from './store';
 import { createTitle, updateTitle } from './titles';
 
@@ -38,7 +39,7 @@ export function ProgramMonitor() {
         {playing && fpsShown > 0 && fpsShown < seq.fps * 0.8 && <span className="pill warn" title="Bu bilgisayar tam hızda oynatamıyor. Oynatma çözünürlüğünü düşürün veya proxy kullanın.">düşen kare</span>}
       </div>
       <div className="monitor">
-        <div className="viewer" onDoubleClick={() => player.toggle()} style={{ cursor: useStore.getState().tool === 'type' ? 'text' : undefined }}
+        <div className="viewer" onDoubleClick={() => player.toggle()} onContextMenu={(e) => programMenu(e)} style={{ cursor: useStore.getState().tool === 'type' ? 'text' : undefined }}
           onMouseDown={async (e) => {
             if (useStore.getState().tool !== 'type' || !canvasRef.current) return;
             // Type tool: click where the title should sit
@@ -149,6 +150,11 @@ export function SourceMonitor() {
         case 'end': v.currentTime = Number.isFinite(media.duration) ? media.duration : 0; break;
         case 'go-in': if (media.markIn !== null) v.currentTime = media.markIn; break;
         case 'go-out': if (media.markOut !== null) v.currentTime = media.markOut; break;
+        default:
+          if (cmd.startsWith('seek:')) {
+            const to = Number(cmd.slice(5));
+            if (v.readyState >= 1) v.currentTime = to; else v.addEventListener('loadedmetadata', () => { v.currentTime = to; }, { once: true });
+          }
       }
     };
     window.addEventListener('kurgu-source', h);

@@ -222,6 +222,7 @@ class Player {
 
   /** source time for a timeline frame, also outside the clip (transition handles), clamped to the media */
   private srcTime(c: Clip, m: MediaItem, f: number, fps: number): number {
+    if (c.freeze !== undefined) return Math.max(0, Number.isFinite(m.duration) ? Math.min(m.duration - 0.02, c.freeze) : c.freeze);
     const sp = Math.abs(c.speed) || 1;
     let s = c.speed >= 0 ? c.srcIn + ((f - c.start) / fps) * sp : c.srcIn + ((clipEnd(c) - f) / fps) * sp;
     if (Number.isFinite(m.duration)) s = Math.min(m.duration - 0.02, s);
@@ -242,7 +243,7 @@ class Player {
     const srcT = this.srcTime(c, m, frame, seq.fps);
     if (v.el instanceof HTMLVideoElement) {
       const el = v.el;
-      const forward = playing && c.speed > 0 && rate > 0;
+      const forward = playing && c.speed > 0 && rate > 0 && c.freeze === undefined;
       const pr = Math.abs(c.speed * rate);
       if (forward && pr <= 16) {
         if (Math.abs(el.playbackRate - pr) > 1e-3) el.playbackRate = pr;
@@ -386,7 +387,7 @@ class Player {
         const audible = !t.muted && (!anySolo || t.solo);
         if (strip) { strip.gain.gain.value = audible ? Math.pow(10, t.volumeDb / 20) : 0; strip.pan.pan.value = (t.pan ?? 0) / 100; }
         if (!audible) continue;
-        const clips = Object.values(seq.clips).filter((c) => c.trackId === t.id && c.stream === 'audio' && c.enabled && c.speed > 0).sort((a, b) => a.start - b.start);
+        const clips = Object.values(seq.clips).filter((c) => c.trackId === t.id && c.stream === 'audio' && c.enabled && c.speed > 0 && c.freeze === undefined).sort((a, b) => a.start - b.start);
         for (const c of clips) {
           if (frame < c.start || frame >= clipEnd(c)) continue;
           const m = st.project.media[c.mediaId];

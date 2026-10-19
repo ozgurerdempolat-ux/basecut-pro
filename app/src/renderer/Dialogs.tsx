@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { framesToTimecode, makeSequence } from '../core/model';
 import * as ops from '../core/ops';
 import { committedSeq, edit, editProject, loadProject, useStore } from './store';
-import type { Project } from '../core/model';
+import type { Clip, Project } from '../core/model';
 
 export function Modal({ title, children, onClose, footer }: { title: string; children: React.ReactNode; onClose: () => void; footer?: React.ReactNode }) {
   return (
@@ -25,6 +25,7 @@ export function Dialogs() {
   if (d.kind === 'sequence') return <SequenceDialog />;
   if (d.kind === 'shortcuts') return <ShortcutsDialog />;
   if (d.kind === 'about') return <AboutDialog />;
+  if (d.kind === 'attributes') return <AttributesDialog mode={d.data === 'remove' ? 'remove' : 'paste'} />;
   if (d.kind === 'recovery') return <RecoveryDialog data={d.data as { project: Project; savedAt: number }} />;
   return null;
 }
@@ -154,6 +155,70 @@ function RecoveryDialog({ data }: { data: { project: Project; savedAt: number } 
       </>}>
       <div>BaseCut Pro son oturumda düzgün kapanmadı. <b>{data.project.name}</b> projesinin {when} tarihli hali her düzenlemede diske yazılmıştı.</div>
       <div style={{ color: 'var(--text-2)' }}>Kaldığınız yerden, son yaptığınız düzenlemeye kadar devam edebilirsiniz.</div>
+    </Modal>
+  );
+}
+
+// ------------------------------------------------------------------ paste / remove attributes
+
+const ATTRS = [
+  { id: 'motion', label: 'Hareket (konum, ölçek, döndürme)' },
+  { id: 'opacity', label: 'Opaklık' },
+  { id: 'effects', label: 'Video efektleri' },
+  { id: 'color', label: 'Renk düzeltme' },
+  { id: 'volume', label: 'Ses seviyesi' },
+  { id: 'audioFx', label: 'Ses efektleri' },
+  { id: 'speed', label: 'Hız' },
+] as const;
+type AttrId = (typeof ATTRS)[number]['id'];
+
+export function applyAttributes(mode: 'paste' | 'remove', on: Set<AttrId>, scaleKeys: boolean) {
+  const st = useStore.getState();
+  const src = mode === 'paste' ? st.clipboard?.[0] : null;
+  if (mode === 'paste' && !src) return;
+  const ids = st.selection;
+  const json = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
+  edit(mode === 'paste' ? 'Özellikleri yapıştır' : 'Özellikleri kaldır', (s) => {
+    for (const id of ids) {
+      const c = s.clips[id];
+      if (!c) continue;
+      const k = src && scaleKeys && src.duration > 0 ? c.duration / src.duration : 1;
+      const scaled = (p: Clip['transform']['posX']) => { const q = json(p); for (const kf of q.keyframes) kf.frame = Math.round(kf.frame * k); return q; };
+      if (on.has('motion') && c.stream === 'video') {
+        for (const key of ['posX', 'posY', 'scale', 'rotation'] as const) {
+          if (src) c.transform[key] = scaled(src.transform[key]);
+          else c.transform[key] = { value: key === 'scale' ? 100 : 0, keyframes: [] };
+        }
+      }
+      if (on.has('opacity') && c.stream === 'video') c.transform.opacity = src ? scaled(src.transform.opacity) : { value: 100, keyframes: [] };
+      if (on.has('effects') && c.stream === 'video') { if (src?.effects?.length) c.effects = json(src.effects).map((e) => ({ ...e, id: `fx_${Math.random().toString(36).slice(2, 9)}` })); else if (!src) delete c.effects; }
+      if (on.has('color') && c.stream === 'video') { if (src?.color) c.color = json(src.color); else if (!src) delete c.color; }
+      if (on.has('volume') && c.stream === 'audio') c.volumeDb = src ? scaled(src.volumeDb) : { value: 0, keyframes: [] };
+      if (on.has('audioFx') && c.stream === 'audio') { if (src?.audioFx?.length) c.audioFx = json(src.audioFx).map((e) => ({ ...e, id: `afx_${Math.random().toString(36).slice(2, 9)}` })); else if (!src) delete c.audioFx; }
+      if (on.has('speed') && src && Math.abs(src.speed) > 0) c.speed = src.speed;
+    }
+  });
+}
+
+function AttributesDialog({ mode }: { mode: 'paste' | 'remove' }) {
+  const [on, setOn] = useState<Set<AttrId>>(new Set(['motion', 'opacity', 'effects', 'color', 'volume', 'audioFx']));
+  const [scaleKeys, setScaleKeys] = useState(true);
+  const st = useStore.getState();
+  const n = st.selection.length;
+  const src = st.clipboard?.[0];
+  const go = () => { applyAttributes(mode, on, scaleKeys); close(); };
+  return (
+    <Modal title={mode === 'paste' ? 'Özellikleri Yapıştır' : 'Özellikleri Kaldır'} onClose={close}
+      footer={<><button className="btn" onClick={close}>Vazgeç</button><button className="btn primary" disabled={!n || !on.size} onClick={go}>{mode === 'paste' ? 'Yapıştır' : 'Kaldır'}</button></>}>
+      <div style={{ marginBottom: 8, color: 'var(--text-2)' }}>
+        {mode === 'paste' ? <>Kaynak: <b>{src?.name ?? '—'}</b> → {n} seçili klip</> : <>{n} seçili klipten kaldırılacaklar:</>}
+      </div>
+      {ATTRS.map((a) => (
+        <label key={a.id} className="check" style={{ display: 'flex', margin: '5px 0' }}>
+          <input type="checkbox" checked={on.has(a.id)} onChange={(e) => { const x = new Set(on); if (e.target.checked) x.add(a.id); else x.delete(a.id); setOn(x); }} /> {a.label}
+        </label>
+      ))}
+      {mode === 'paste' && <label className="check" style={{ display: 'flex', marginTop: 10, color: 'var(--text-2)' }}><input type="checkbox" checked={scaleKeys} onChange={(e) => setScaleKeys(e.target.checked)} /> Anahtar kare zamanlamasını klip süresine göre ölçekle</label>}
     </Modal>
   );
 }

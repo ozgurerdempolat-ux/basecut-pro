@@ -511,6 +511,66 @@ await page.click('.modes button:has-text("Kurgu")').catch(() => {});
   }, cut.id);
 }
 
+// ---- context menus, frame hold, paste attributes, keyframe interpolation
+{
+  await page.evaluate(() => window.__kurgu.store.useStore.setState({ leftTab: 'fx' }));
+  const info = await page.evaluate(() => {
+    const k = window.__kurgu.store; const s = k.committedSeq();
+    const v1 = s.tracks.find((t) => t.name === 'V1').id;
+    const cs = Object.values(s.clips).filter((c) => c.trackId === v1).sort((a, b) => a.start - b.start);
+    const withFx = cs.find((c) => (c.effects ?? []).length);
+    const other = cs.find((c) => !(c.effects ?? []).length && c.freeze === undefined);
+    k.setPlayhead(cs[0].start + 10);
+    return { first: cs[0].id, withFx: withFx?.id, other: other?.id, nBefore: Object.keys(s.clips).length };
+  });
+  await page.evaluate(() => { document.querySelector('.tl-scroll').scrollLeft = 0; });
+  await page.waitForTimeout(200);
+  const el = await page.$(`.clip.video >> nth=0`);
+  const box = await el.boundingBox();
+  await page.mouse.click(box.x + Math.min(40, box.width / 2), box.y + box.height / 2, { button: 'right' });
+  await page.waitForSelector('.ctx-menu');
+  const labels = await page.$$eval('.ctx-menu .ctx-label', (x) => x.map((y) => y.textContent));
+  check('Klipte sağ tık menüsü açılıyor', labels.includes('Kare Dondurma Ekle') && labels.includes('Özellikleri Yapıştır…'), labels.slice(0, 6).join(' | '));
+  await shot(page, '19-sag-tik-menusu');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(100);
+  check('Esc menüyü kapatıyor', !(await page.$('.ctx-menu')));
+  // frame hold from the menu
+  const target = await page.evaluate(() => { const k = window.__kurgu.store; const s = k.committedSeq(); const c = Object.values(s.clips).filter((x) => x.stream === 'video' && x.freeze === undefined).sort((a, b) => a.start - b.start)[0]; k.selectClips([c.id]); k.setPlayhead(c.start + 10); return c.id; });
+  await page.mouse.click(box.x + Math.min(40, box.width / 2), box.y + box.height / 2, { button: 'right' });
+  await page.click('.ctx-menu .ctx-item:has-text("Kare Dondurma Ekle")');
+  const held = await page.evaluate(() => Object.values(window.__kurgu.store.committedSeq().clips).filter((c) => c.freeze !== undefined).length);
+  check('Kare dondurma eklendi', held >= 1, `${held} donmuş klip (${target})`);
+  await page.keyboard.press('Control+z');
+  // paste attributes
+  if (info.withFx && info.other) {
+    await page.evaluate((id) => window.__kurgu.store.selectClips([id], false), info.withFx);
+    await page.click('.tl-scroll', { position: { x: 5, y: 120 } });
+    await page.evaluate((id) => window.__kurgu.store.selectClips([id], false), info.withFx);
+    await page.keyboard.press('Control+c');
+    await page.evaluate((id) => window.__kurgu.store.selectClips([id], false), info.other);
+    await page.keyboard.press('Control+Alt+v');
+    await page.waitForSelector('.modal:has-text("Özellikleri Yapıştır")');
+    await page.click('.modal button:has-text("Yapıştır")');
+    const fx = await page.evaluate((id) => (window.__kurgu.store.committedSeq().clips[id].effects ?? []).map((e) => e.type), info.other);
+    check('Özellikleri yapıştır efektleri taşıdı', fx.length > 0, JSON.stringify(fx));
+  }
+  // keyframe lane + interpolation menu
+  await page.evaluate((id) => { const k = window.__kurgu.store; k.selectClips([id], false); const c = k.committedSeq().clips[id]; k.setPlayhead(c.start + 2); k.useStore.setState({ leftTab: 'fx' }); }, info.first);
+  await page.waitForTimeout(200);
+  await page.click('.fx-row:has-text("Ölçek") .stopwatch');
+  await page.evaluate((id) => { const c = window.__kurgu.store.committedSeq().clips[id]; window.__kurgu.store.setPlayhead(c.start + 20); }, info.first);
+  await page.waitForTimeout(150);
+  await page.click('.fx-row:has-text("Ölçek") button[title="Anahtar kare ekle/sil"]');
+  await page.waitForSelector('.key-lane .key-dot');
+  const dots = await page.$$('.key-lane .key-dot');
+  await dots[0].click({ button: 'right' });
+  await page.click('.ctx-menu .ctx-item:has-text("Yumuşak")');
+  const eases = await page.evaluate((id) => window.__kurgu.store.committedSeq().clips[id].transform.scale.keyframes.map((x) => x.ease), info.first);
+  check('Anahtar kare şeridi + ara değer menüsü', dots.length === 2 && eases[0] === 'ease', JSON.stringify(eases));
+  await shot(page, '20-anahtar-kare-seridi');
+}
+
 // ---- audio mixer, ducking, voice-over
 {
   await page.click('.panel-tabs .tab:has-text("Mikser")');

@@ -66,6 +66,9 @@ function paramExpr(p: AnimatableParam, clipStartSec: number, fps: number): strin
     else {
       let tt = `((t-${T(a.frame)})/${r6((b.frame - a.frame) / fps)})`;
       if (a.ease === 'ease') tt = `(${tt}*${tt}*(3-2*${tt}))`;
+      else if (a.ease === 'out') tt = `(${tt}*${tt})`;
+      else if (a.ease === 'in') tt = `(1-(1-${tt})*(1-${tt}))`;
+      else if (a.ease === 'fast') tt = `(1-pow(1-${tt},4))`;
       lerp = `(${r6(a.value)}+(${r6(b.value - a.value)})*${tt})`;
     }
     e = `if(lt(t,${T(b.frame)}),${lerp},${e})`;
@@ -158,7 +161,12 @@ export function buildRenderPlan(
       const D = Number.isFinite(m.duration) ? m.duration : Infinity;
       const i = inputIndex++;
       const chain: string[] = [];
-      if (isImg) {
+      if (c.freeze !== undefined && !isImg) {
+        // frame hold: one decoded frame, repeated
+        const t = Math.max(0, Math.min(c.freeze, (Number.isFinite(D) ? D : c.freeze + 1) - 1 / F));
+        args.push('-ss', r6(t), '-t', r6(2 / F + 0.1), '-i', resolvePath(m));
+        chain.push('trim=end_frame=1', 'setpts=PTS-STARTPTS', `fps=${r6(fps)}`, `tpad=stop_mode=clone:stop_duration=${r6(lenOut + 1 / fps)}`, `trim=duration=${r6(lenOut)}`);
+      } else if (isImg) {
         args.push('-loop', '1', '-framerate', r6(fps), '-t', r6(lenOut + 1 / fps), '-i', resolvePath(m));
         chain.push(`trim=duration=${r6(lenOut)}`, 'setpts=PTS-STARTPTS', `fps=${r6(fps)}`);
       } else {
@@ -328,7 +336,7 @@ export function buildRenderPlan(
         const m = project.media[c.mediaId];
         const sg = segs.get(c.id)!;
         const a = Math.max(sg.a, from), b = Math.min(sg.b, to);
-        if (b <= a || !m || !m.hasAudio) continue;
+        if (b <= a || !m || !m.hasAudio || c.freeze !== undefined) continue;
         const speed = Math.abs(c.speed) || 1;
         const lenSec = (b - a) / F;
         // source window (may reach outside the clip for crossfades); clamp to the media

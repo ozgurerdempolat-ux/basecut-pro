@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatableParam, Clip, LabelColor, MediaItem, evalParam, framesToTimecode, makeSequence } from '../core/model';
+import { AnimatableParam, Clip, KEY_EASES, KeyEase, LabelColor, MediaItem, evalParam, framesToTimecode, makeSequence } from '../core/model';
+import { MenuItem, openMenu } from './ContextMenu';
 import { I } from './icons';
 import { CaptionsPanel } from './Captions';
 import { ColorPanel } from './ColorPanel';
 import { AudioEffectStack, EffectStack, EffectsLibrary, TransitionControls } from './Effects';
 import { MixerPanel } from './Mixer';
+import { mediaMenu } from './menus';
 import { createTitle, updateTitle } from './titles';
 import { TITLE_FONTS, TITLE_PRESETS, TitleData } from '../core/title';
-import { Tool, activeSeq, committedSeq, edit, editProject, importPaths, setPlayhead, useStore } from './store';
+import { Tool, activeSeq, commitPreview, committedSeq, edit, editProject, importPaths, previewEdit, setPlayhead, useStore } from './store';
 
 export const LABELS: Record<LabelColor, string> = {
   violet: '#8f6bd8', iris: '#5b78e5', caribbean: '#22b8a0', lavender: '#b796e8', cerulean: '#2f9ad6', forest: '#4c9a4c',
@@ -121,7 +123,7 @@ export function ProjectPanel() {
                         e.dataTransfer.setData('application/x-kurgu-media', JSON.stringify({ ids }));
                         e.dataTransfer.effectAllowed = 'copy';
                       }}
-                      onMouseDown={(e) => select(m.id, e)} onDoubleClick={() => openInSource(m)}
+                      onMouseDown={(e) => { if (e.button === 0) select(m.id, e); }} onContextMenu={(e) => mediaMenu(e, m, () => openInSource(m))} onDoubleClick={() => openInSource(m)}
                       onMouseMove={(e) => {
                         if (!strip || m.kind !== 'video') return;
                         const r = e.currentTarget.getBoundingClientRect();
@@ -148,7 +150,7 @@ export function ProjectPanel() {
                   {items.map((m) => (
                     <tr key={m.id} className={selected.includes(m.id) ? 'sel' : ''} draggable
                       onDragStart={(e) => e.dataTransfer.setData('application/x-kurgu-media', JSON.stringify({ ids: selected.includes(m.id) ? selected : [m.id] }))}
-                      onMouseDown={(e) => select(m.id, e)} onDoubleClick={() => openInSource(m)}>
+                      onMouseDown={(e) => { if (e.button === 0) select(m.id, e); }} onContextMenu={(e) => mediaMenu(e, m, () => openInSource(m))} onDoubleClick={() => openInSource(m)}>
                       <td><span className="label-dot" style={{ background: LABELS[m.label], display: 'inline-block', marginRight: 6 }} />{m.name}</td>
                       <td>{m.kind === 'image' ? '—' : framesToTimecode(m.duration * (m.fps || 30), m.fps || 30)}</td>
                       <td>{m.width ? `${m.width}×${m.height}` : '—'}</td>
@@ -319,6 +321,7 @@ function ParamRow({ clip, k, label, local, step, unit, min, max }: { clip: Clip;
   };
 
   return (
+    <>
     <div className="fx-row">
       <button className={`icon-btn stopwatch ${animated ? 'on' : ''}`} title="Animasyonu aç/kapat" onClick={toggleAnim}>{I.stopwatch}</button>
       <span className="lbl">{label}</span>
@@ -330,6 +333,66 @@ function ParamRow({ clip, k, label, local, step, unit, min, max }: { clip: Clip;
           <button className="icon-btn" style={{ width: 14 }} title="Sonraki anahtar kare" onClick={() => jump(1)}>›</button>
         </>}
       </span>
+    </div>
+    {animated && <KeyLane clip={clip} k={k} local={local} />}
+    </>
+  );
+}
+
+/** keyframes of one property along the clip: drag to retime, right-click for interpolation */
+function KeyLane({ clip, k, local }: { clip: Clip; k: string; local: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const p = getParam(clip, k);
+  const D = Math.max(1, clip.duration - 1);
+  const frameAt = (clientX: number) => {
+    const r = ref.current!.getBoundingClientRect();
+    return Math.max(0, Math.min(D, Math.round(((clientX - r.left) / r.width) * D)));
+  };
+  const setEase = (frames: number[], ease: KeyEase) => edit('Ara değer', (s) => { for (const kf of getParam(s.clips[clip.id], k).keyframes) if (frames.includes(kf.frame)) kf.ease = ease; });
+  const keyMenu = (e: React.MouseEvent, f: number) => {
+    const kf = p.keyframes.find((x) => x.frame === f)!;
+    openMenu(e, [
+      ...KEY_EASES.map((x): MenuItem => ({ label: x.name, checked: kf.ease === x.id, action: () => setEase([f], x.id) })),
+      { sep: true },
+      { label: 'Tüm anahtar karelere uygula', submenu: KEY_EASES.map((x): MenuItem => ({ label: x.name, action: () => setEase(p.keyframes.map((y) => y.frame), x.id) })) },
+      { sep: true },
+      { label: 'Anahtar kareye git', action: () => setPlayhead(clip.start + f) },
+      { label: 'Sil', danger: true, action: () => edit('Anahtar kareyi sil', (s) => { const pp = getParam(s.clips[clip.id], k); const i = pp.keyframes.findIndex((x) => x.frame === f); if (i >= 0) { if (pp.keyframes.length === 1) pp.value = pp.keyframes[0].value; pp.keyframes.splice(i, 1); } }) },
+    ]);
+  };
+  const down = (e: React.MouseEvent, f: number) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    const x0 = e.clientX;
+    let moved = false, last = f;
+    const mv = (ev: MouseEvent) => {
+      if (!moved && Math.abs(ev.clientX - x0) < 3) return;
+      moved = true;
+      let nf = frameAt(ev.clientX);
+      if (p.keyframes.some((x) => x.frame === nf && x.frame !== f)) nf = last; // never land on another key
+      last = nf;
+      previewEdit((s) => { const pp = getParam(s.clips[clip.id], k); const kf = pp.keyframes.find((x) => x.frame === f); if (kf) kf.frame = nf; pp.keyframes.sort((a, b) => a.frame - b.frame); });
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up);
+      if (moved) { commitPreview('Anahtar kareyi taşı'); setPlayhead(clip.start + last); } else setPlayhead(clip.start + f);
+    };
+    window.addEventListener('mousemove', mv); window.addEventListener('mouseup', up);
+  };
+  return (
+    <div className="key-lane" ref={ref} onMouseDown={(e) => { if (e.button === 0) setPlayhead(clip.start + frameAt(e.clientX)); }}>
+      <div className="key-ph" style={{ left: `${(local / D) * 100}%` }} />
+      {p.keyframes.map((kf, i) => {
+        const next = p.keyframes[i + 1];
+        return (
+          <span key={kf.frame}>
+            {next && <span className={`key-seg e-${kf.ease}`} style={{ left: `${(kf.frame / D) * 100}%`, width: `${((next.frame - kf.frame) / D) * 100}%` }} />}
+            <span className={`key-dot e-${kf.ease} ${kf.frame === local ? 'on' : ''}`} style={{ left: `${(kf.frame / D) * 100}%` }}
+              title={`${KEY_EASES.find((x) => x.id === kf.ease)?.name} · ${Math.round(kf.value * 100) / 100}\nSürükle: taşı · Sağ tık: ara değer`}
+              onMouseDown={(e) => down(e, kf.frame)} onContextMenu={(e) => keyMenu(e, kf.frame)} />
+          </span>
+        );
+      })}
     </div>
   );
 }

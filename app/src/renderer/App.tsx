@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { Clip, clipEnd, sequenceDuration } from '../core/model';
+import { Clip, clipEnd, sequenceDuration, sourceTimeAt } from '../core/model';
 import * as ops from '../core/ops';
 import { Dialogs } from './Dialogs';
+import { ContextMenuHost } from './ContextMenu';
 import { ExportMode } from './ExportMode';
 import { I } from './icons';
 import { ProgramMonitor, SourceMonitor, sourceEdit } from './Monitors';
@@ -126,6 +127,7 @@ export function App() {
         {toasts.map((t) => <div key={t.id} className={`toast ${t.kind}`}>{t.text}</div>)}
       </div>
       <Dialogs />
+      <ContextMenuHost />
     </div>
   );
 }
@@ -206,6 +208,45 @@ export function runCommand(c: string) {
     case 'close-gaps': edit('Boşlukları kapat', (s) => ops.closeAllGaps(s)); return;
     case 'default-transition': applyDefaultTransition(); return;
     case 'default-audio-transition': applyDefaultAudioTransition(); return;
+    case 'frame-hold': case 'frame-hold-segment': case 'frame-hold-whole': {
+      const at = seq.playhead;
+      let ids = selectedClips().filter((x) => x.stream === 'video' && at >= x.start && at < clipEnd(x)).map((x) => x.id);
+      if (!ids.length) ids = ops.clipsAt(seq, at).filter((x) => x.stream === 'video').slice(0, 1).map((x) => x.id);
+      if (!ids.length) { toast('Oynatma kafasının altında video klibi yok', 'error'); return; }
+      const mode = c === 'frame-hold' ? 'after' : c === 'frame-hold-segment' ? 'segment' : 'whole';
+      let made: string[] = [];
+      edit(mode === 'segment' ? 'Kare dondurma bölümü ekle' : 'Kare dondur', (s) => { made = ops.frameHold(s, ids, at, mode, Math.round(s.fps * 2)); });
+      if (made.length) { selectClips(made); toast(mode === 'segment' ? '2 saniyelik donmuş kare eklendi' : 'Kare donduruldu', 'success'); }
+      return;
+    }
+    case 'paste-attributes': if (!st.clipboard?.length) toast('Önce bir klip kopyalayın (Ctrl+C)', 'error'); else useStore.setState({ dialog: { kind: 'attributes', data: 'paste' } }); return;
+    case 'remove-attributes': if (st.selection.length) useStore.setState({ dialog: { kind: 'attributes', data: 'remove' } }); return;
+    case 'rename-clip': {
+      const sel = selectedClips()[0];
+      if (!sel) return;
+      const name = window.prompt('Klip adı', sel.name);
+      if (name && name.trim()) edit('Yeniden adlandır', (s) => { if (s.clips[sel.id]) s.clips[sel.id].name = name.trim(); });
+      return;
+    }
+    case 'match-frame': {
+      const cl = ops.clipsAt(seq, seq.playhead, seq.tracks.filter((t) => t.targeted).map((t) => t.id))[0] ?? ops.clipsAt(seq, seq.playhead)[0];
+      if (!cl) return;
+      const t = sourceTimeAt(cl, seq.playhead, seq.fps) ?? cl.srcIn;
+      useStore.setState({ sourceMediaId: cl.mediaId, focus: 'source' });
+      window.setTimeout(() => window.dispatchEvent(new CustomEvent('kurgu-source', { detail: `seek:${t}` })), 50);
+      return;
+    }
+    case 'reveal-in-project': {
+      const cl = selectedClips()[0];
+      if (cl) useStore.setState({ leftTab: 'project', selectedMedia: [cl.mediaId], focus: 'project' });
+      return;
+    }
+    case 'reveal-in-folder': {
+      const cl = selectedClips()[0];
+      const m = cl ? st.project.media[cl.mediaId] : null;
+      if (m) window.kurgu.revealInFolder(m.path);
+      return;
+    }
     case 'add-video-track': edit('Video izi ekle', (s) => { ops.addTrack(s, 'video'); }); return;
     case 'add-audio-track': edit('Ses izi ekle', (s) => { ops.addTrack(s, 'audio'); }); return;
   }
@@ -290,7 +331,7 @@ function handleKey(e: KeyboardEvent): boolean {
       [k === 's' && !shift, 'save'], [k === 's' && shift, 'save-as'], [k === 'o', 'open'],
       [k === 'n' && alt, 'new-project'], [k === 'n' && !alt, 'new-sequence'],
       [k === 'i', 'import'], [k === 'm', 'export'], [k === 'e' && shift, 'export-frame'],
-      [k === 'c', 'copy'], [k === 'x' && !shift, 'cut'], [k === 'v' && !shift, 'paste'], [k === 'v' && shift, 'paste-insert'],
+      [k === 'c', 'copy'], [k === 'x' && !shift, 'cut'], [k === 'v' && !shift && !alt, 'paste'], [k === 'v' && shift, 'paste-insert'], [k === 'v' && alt && !shift, 'paste-attributes'],
       [k === 'a' && !shift, 'select-all'], [k === 'a' && shift, 'deselect'],
       [k === 'k' && !shift, 'add-edit'], [k === 'k' && shift, 'add-edit-all'],
       [k === 'r', 'speed'], [k === 'l', 'toggle-link'], [k === 'k' && alt, 'shortcuts'], [k === 'd' && !shift, 'default-transition'], [k === 'd' && shift, 'default-audio-transition'],
@@ -366,6 +407,7 @@ function handleKey(e: KeyboardEvent): boolean {
   if (!ctrl && k === '-') { useStore.setState((s) => ({ zoom: Math.max(0.02, s.zoom / 1.5) })); return true; }
   if (!ctrl && k === '\\') { fitZoom(); return true; }
   if (!ctrl && e.shiftKey && k === 'e') { runCommand('toggle-enable'); return true; }
+  if (!ctrl && !e.shiftKey && k === 'f') { runCommand('match-frame'); return true; }
   if (!ctrl && e.shiftKey && k === 'arrowdown') return false;
 
   // tools
