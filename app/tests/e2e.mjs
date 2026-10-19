@@ -754,6 +754,25 @@ if (existsSync(outFile)) {
   check('Uzun duraklamalar kaldırıldı', gaps < 30, `${info} · en uzun boşluk ${gaps} kare`);
 }
 
+// ---- auto reframe to 9:16
+{
+  await page.evaluate(() => window.__kurgu.store.useStore.setState({ mode: 'edit', dialog: { kind: 'reframe' } }));
+  await page.waitForSelector('.modal:has-text("Otomatik Yeniden Kadrajla")');
+  const srcId = await page.evaluate(() => window.__kurgu.store.committedSeq().id);
+  await page.click('.modal button:has-text("Yeni sekans oluştur")');
+  await page.waitForFunction((id) => window.__kurgu.store.committedSeq().id !== id, srcId, { timeout: 120000 });
+  const rf = await page.evaluate(() => {
+    const s = window.__kurgu.store.committedSeq();
+    const st = window.__kurgu.store.useStore.getState();
+    const v = Object.values(s.clips).filter((c) => c.stream === 'video' && st.project.media[c.mediaId]?.kind === 'video');
+    return { w: s.width, h: s.height, name: s.name, scales: v.map((c) => Math.round(c.transform.scale.value)), keyed: v.filter((c) => c.transform.posX.keyframes.length > 1).length, n: v.length };
+  });
+  check('Otomatik yeniden kadraj 9:16 sekans oluşturdu', rf.w === 1080 && rf.h === 1920 && rf.scales.every((x) => x >= 300), JSON.stringify(rf));
+  await page.evaluate(() => window.__kurgu.store.setPlayhead(45));
+  await page.waitForTimeout(900);
+  await shot(page, '26-otomatik-kadraj-9x16');
+}
+
 // ---- crash isolation: kill the worker mid-job and keep editing
 const pid = await app.evaluate(async ({ app }) => app.getAppMetrics().find((m) => m.type === 'Utility' && /Kurgu Media Worker|NodeService/.test(m.serviceName ?? m.name ?? ''))?.pid ?? null);
 if (pid) {

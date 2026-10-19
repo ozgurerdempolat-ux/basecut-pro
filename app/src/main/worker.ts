@@ -11,6 +11,7 @@ import { bakeLut, gradeKey, isNeutral, parseCube, toCube } from '../core/color';
 import type { Clip } from '../core/model';
 import type { ExportRequest, MediaAssets, ProbeResult, StabilizeRequest, WorkerRequest, WorkerResponse } from '../shared/ipc';
 import { detectArgs, transformArgs } from '../core/stabilize';
+import { ReframeSample, saliency } from '../core/reframe';
 import { FFMPEG, FFPROBE } from './ffbin';
 
 const port = (process as unknown as { parentPort: { on(e: 'message', cb: (m: { data: WorkerRequest }) => void): void; postMessage(m: WorkerResponse): void } }).parentPort;
@@ -157,6 +158,25 @@ async function proxy(path: string, jobId: string): Promise<string> {
   return out;
 }
 
+// ------------------------------------------------------------------ auto reframe
+
+async function reframe(req: { path: string; range: [number, number]; perSecond: number; width: number; height: number }, jobId: string): Promise<ReframeSample[]> {
+  const W = 96, H = Math.max(8, Math.round((96 * (req.height || 9)) / (req.width || 16) / 2) * 2);
+  const len = Math.max(0.05, req.range[1] - req.range[0]);
+  const raw = await run(FFMPEG, ['-v', 'error', '-nostdin', '-ss', String(req.range[0]), '-t', String(len), '-i', req.path, '-an', '-vf', `fps=${req.perSecond},scale=${W}:${H}:flags=area`, '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], { jobId });
+  const out: ReframeSample[] = [];
+  let prev: Uint8Array | null = null;
+  const fsz = W * H * 3;
+  for (let o = 0, i = 0; o + fsz <= raw.length; o += fsz, i++) {
+    const f = new Uint8Array(raw.buffer, raw.byteOffset + o, fsz);
+    const s = saliency(f, W, H, prev);
+    out.push({ t: req.range[0] + i / req.perSecond, x: s.x, y: s.y, w: s.weight });
+    prev = f;
+  }
+  send({ id: jobId, progress: 1 });
+  return out;
+}
+
 // ------------------------------------------------------------------ warp stabilizer
 
 const stabRuns = new Map<string, Promise<string>>();
@@ -264,6 +284,7 @@ port.on('message', async ({ data }) => {
       case 'assets': result = await assets(payload as string); break;
       case 'proxy': result = await proxy(payload as string, id); break;
       case 'stabilize': result = await stabilize(payload as StabilizeRequest, id); break;
+      case 'reframe': result = await reframe(payload as { path: string; range: [number, number]; perSecond: number; width: number; height: number }, id); break;
       case 'export': result = await exportSeq(payload as ExportRequest, id); break;
       case 'frame': result = await frame(payload as { path: string; time: number; out: string }); break;
       case 'speechAudio': result = await speechAudio(payload as { project: import('../core/model').Project; sequenceId: string; trackIds: string[] }, id); break;

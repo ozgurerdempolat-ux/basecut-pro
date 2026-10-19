@@ -38,7 +38,7 @@ function preflight(settings: ExportSettings): Issue[] {
   const W = settings.width ?? seq.width, H = settings.height ?? seq.height;
   if ((W % 2 || H % 2) && settings.videoCodec !== 'none') issues.push({ level: 'warn', text: `${W}×${H} tek sayı içeriyor; çift sayıya yuvarlanacak.` });
   if (settings.videoCodec === 'h264' && W * H > 4096 * 2304 && settings.hardware !== 'none') issues.push({ level: 'warn', text: 'Bazı donanım kodlayıcılar 4K üstünü desteklemez.' });
-  if (W / H !== seq.width / seq.height && settings.videoCodec !== 'none') issues.push({ level: 'warn', text: `Çıkış en-boy oranı sekanstan farklı; görüntü siyah bantlarla sığdırılacak. Dikey video için sekansı 9:16 oluşturun veya Otomatik Yeniden Kadrajla'yı kullanın.` });
+  if (W / H !== seq.width / seq.height && settings.videoCodec !== 'none') issues.push({ level: 'warn', text: `Çıkış en-boy oranı sekanstan farklı; görüntü siyah bantlarla sığdırılacak. Dikey video için Otomatik Yeniden Kadrajla'yı kullanın.`, fix: { label: 'Yeniden kadrajla…', run: () => useStore.setState({ dialog: { kind: 'reframe' }, mode: 'edit' }) } });
   const speedy = Object.values(seq.clips).filter((c) => c.speed < 0).length;
   if (speedy) issues.push({ level: 'warn', text: `${speedy} ters oynatılan klip var; render daha fazla bellek kullanır.` });
   if (!issues.length) issues.push({ level: 'ok', text: 'Her şey hazır görünüyor.' });

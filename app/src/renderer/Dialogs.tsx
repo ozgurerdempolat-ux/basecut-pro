@@ -3,6 +3,8 @@ import { framesToTimecode, makeSequence } from '../core/model';
 import * as ops from '../core/ops';
 import { committedSeq, edit, editProject, loadProject, useStore } from './store';
 import type { Clip, Project } from '../core/model';
+import { REFRAME_PRESETS } from '../core/reframe';
+import { reframeSequence } from './reframe';
 
 export function Modal({ title, children, onClose, footer }: { title: string; children: React.ReactNode; onClose: () => void; footer?: React.ReactNode }) {
   return (
@@ -25,6 +27,7 @@ export function Dialogs() {
   if (d.kind === 'sequence') return <SequenceDialog />;
   if (d.kind === 'shortcuts') return <ShortcutsDialog />;
   if (d.kind === 'about') return <AboutDialog />;
+  if (d.kind === 'reframe') return <ReframeDialog />;
   if (d.kind === 'attributes') return <AttributesDialog mode={d.data === 'remove' ? 'remove' : 'paste'} />;
   if (d.kind === 'recovery') return <RecoveryDialog data={d.data as { project: Project; savedAt: number }} />;
   return null;
@@ -221,6 +224,38 @@ function AttributesDialog({ mode }: { mode: 'paste' | 'remove' }) {
         </label>
       ))}
       {mode === 'paste' && <label className="check" style={{ display: 'flex', marginTop: 10, color: 'var(--text-2)' }}><input type="checkbox" checked={scaleKeys} onChange={(e) => setScaleKeys(e.target.checked)} /> Anahtar kare zamanlamasını klip süresine göre ölçekle</label>}
+    </Modal>
+  );
+}
+
+// ------------------------------------------------------------------ auto reframe
+
+function ReframeDialog() {
+  const [preset, setPreset] = useState('9:16');
+  const [speed, setSpeed] = useState(0.5);
+  const [busy, setBusy] = useState(false);
+  const seq = committedSeq();
+  const go = async () => {
+    setBusy(true);
+    try { await reframeSequence(preset, speed); close(); } finally { setBusy(false); }
+  };
+  return (
+    <Modal title="Otomatik Yeniden Kadrajla" onClose={() => !busy && close()}
+      footer={<><button className="btn" disabled={busy} onClick={close}>Vazgeç</button><button className="btn primary" disabled={busy} onClick={() => void go()}>{busy ? 'Analiz ediliyor…' : 'Yeni sekans oluştur'}</button></>}>
+      <div style={{ color: 'var(--text-2)', marginBottom: 10, lineHeight: 1.5 }}>
+        "{seq.name}" sekansının yeni en-boy oranında bir kopyası oluşturulur. Her çekimde konu (insanlar, hareket, detay) bulunur ve kadraj onu yumuşakça takip eder. Orijinal sekans değişmez.
+      </div>
+      {REFRAME_PRESETS.map((p) => (
+        <label key={p.id} className="check" style={{ display: 'flex', margin: '6px 0' }}>
+          <input type="radio" name="rf" checked={preset === p.id} onChange={() => setPreset(p.id)} /> {p.name}
+        </label>
+      ))}
+      <div className="field" style={{ marginTop: 10 }}><label>Hareket takibi</label>
+        <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
+          <option value={0.15}>Yavaş (röportaj, konuşma)</option>
+          <option value={0.5}>Varsayılan</option>
+          <option value={0.9}>Hızlı (spor, aksiyon)</option>
+        </select></div>
     </Modal>
   );
 }

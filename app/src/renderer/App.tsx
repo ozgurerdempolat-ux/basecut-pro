@@ -207,6 +207,7 @@ export function runCommand(c: string) {
       return;
     }
     case 'add-edit-all': edit('Tüm izlerde kes', (s) => { ops.razor(s, s.playhead); }); return;
+    case 'auto-reframe': useStore.setState({ dialog: { kind: 'reframe' } }); return;
     case 'close-gaps': edit('Boşlukları kapat', (s) => ops.closeAllGaps(s)); return;
     case 'default-transition': applyDefaultTransition(); return;
     case 'default-audio-transition': applyDefaultAudioTransition(); return;

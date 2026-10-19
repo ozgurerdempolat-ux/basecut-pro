@@ -195,7 +195,7 @@ Translate captions,captions,should,yes,no,
 Import / export SRT / VTT / SCC,captions,must,yes,yes,
 Burn-in captions on export,captions,must,yes,yes,
 Animated word-by-word social captions,captions,must,no,yes,improvement: CapCut-style; Premiere lacks natively
-Auto reframe sequence (9:16 / 1:1 / 4:5 / 16:9),ai,must,yes,no,S32
+Auto reframe sequence (9:16 / 1:1 / 4:5 / 16:9),ai,must,yes,yes,S32
 Auto reframe effect per clip,ai,should,yes,yes,
 Enhance speech,ai,must,yes,yes,
 Auto color (one-click),ai,should,yes,yes,

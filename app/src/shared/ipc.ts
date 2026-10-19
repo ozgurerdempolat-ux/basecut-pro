@@ -50,7 +50,7 @@ export interface JobProgress {
 
 export interface WorkerRequest {
   id: string;
-  type: 'probe' | 'assets' | 'export' | 'proxy' | 'cancel' | 'frame' | 'speechAudio' | 'stabilize';
+  type: 'probe' | 'assets' | 'export' | 'proxy' | 'cancel' | 'frame' | 'speechAudio' | 'stabilize' | 'reframe';
   payload: unknown;
 }
 
@@ -86,6 +86,8 @@ export interface KurguApi {
   makeProxy(path: string): Promise<string>;
   /** Warp Stabilizer: analyse + render the stabilised intermediate (cached by key); resolves to its path */
   stabilize(req: StabilizeRequest): Promise<string>;
+  /** Auto Reframe: subject position samples for a source range */
+  reframeAnalyze(req: { path: string; range: [number, number]; perSecond: number; width: number; height: number; label: string }): Promise<import('../core/reframe').ReframeSample[]>;
   exportSequence(req: ExportRequest): Promise<{ jobId: string }>;
   cancelJob(jobId: string): Promise<void>;
   onJob(cb: (p: JobProgress) => void): () => void;
