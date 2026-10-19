@@ -4,7 +4,9 @@ import * as ops from '../core/ops';
 import { I } from './icons';
 import { player } from './player';
 import { programMenu } from './menus';
-import { committedSeq, edit, editProject, playbackPath, setPlayhead, setSeqField, useStore } from './store';
+import { needsStabilize } from '../core/stabilize';
+import { stabStatus } from './stabilizer';
+import { activeSeq, committedSeq, edit, editProject, playbackPath, setPlayhead, setSeqField, useStore } from './store';
 import { createTitle, updateTitle } from './titles';
 
 // -------------------------------------------------------------------- program monitor
@@ -54,6 +56,7 @@ export function ProgramMonitor() {
           <canvas ref={canvasRef} style={{ aspectRatio: `${seq.width}/${seq.height}` }} />
           {safe && <SafeMargins w={seq.width} h={seq.height} />}
           {total === 0 && <div className="overlay-text">Proje panelinden klip sürükleyin veya içe aktarın</div>}
+          <StabBanner />
         </div>
         <div className="scrubber" onMouseDown={(e) => { scrubTo(e); const el = e.currentTarget; const mv = (ev: MouseEvent) => scrubTo({ clientX: ev.clientX, currentTarget: el } as unknown as React.MouseEvent<HTMLDivElement>); const up = () => { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); }; window.addEventListener('mousemove', mv); window.addEventListener('mouseup', up); }}>
           {seq.inPoint !== null && seq.outPoint !== null && total > 0 && (
@@ -236,4 +239,19 @@ export function sourceEdit(kind: 'insert' | 'overwrite') {
     s.playhead = at + s.clips[created[0]].duration;
   });
   if (ok) player.invalidate();
+}
+
+/** Premiere-style banner while the clip under the playhead is still being stabilised */
+function StabBanner() {
+  useStore((s) => s.stabTick);
+  const seq = useStore((s) => activeSeq(s));
+  const media = useStore((s) => s.project.media);
+  const c = Object.values(seq.clips).find((x) => x.stream === 'video' && x.enabled && seq.playhead >= x.start && seq.playhead < x.start + x.duration && media[x.mediaId] && needsStabilize(x, media[x.mediaId], seq.fps));
+  if (!c) return null;
+  const st = stabStatus.get(c.id);
+  return (
+    <div className={`stab-banner ${st?.state === 'error' ? 'err' : ''}`}>
+      {st?.state === 'error' ? `Sabitleme başarısız: ${st.error}` : st?.state === 'running' ? `Warp Stabilizer: arka planda analiz ediliyor (%${Math.round(st.progress * 100)}) — kurguya devam edebilirsiniz` : 'Warp Stabilizer: sırada'}
+    </div>
+  );
 }

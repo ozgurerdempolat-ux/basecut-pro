@@ -13,3 +13,7 @@ import * as capcore from '../core/captions';
 import * as titles from './titles';
 import * as colorcore from '../core/color';
 (window as unknown as { __kurgu: unknown }).__kurgu = { store, player, ops, captions, capcore, titles, colorcore };
+
+// background Warp Stabilizer renders
+import { trackJobs } from './stabilizer';
+trackJobs();

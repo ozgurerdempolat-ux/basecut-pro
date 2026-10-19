@@ -48,6 +48,8 @@ export interface State {
   proxies: Record<string, string>; // media path → proxy path
   needsProxy: Record<string, boolean>;
   jobs: Record<string, JobProgress>;
+  /** bumps when background stabiliser status changes (re-render banners) */
+  stabTick: number;
   toasts: Toast[];
   sys: SystemInfo | null;
   clipboard: Clip[] | null;
@@ -90,6 +92,7 @@ export const useStore = create<State>(() => ({
   proxies: {},
   needsProxy: {},
   jobs: {},
+  stabTick: 0,
   toasts: [],
   sys: null,
   clipboard: null,
@@ -148,6 +151,13 @@ export function edit(label: string, fn: (s: Sequence, media: Record<Id, MediaIte
     if (e instanceof ops.EditError) { toast(translateError(e.message), 'error'); return false; }
     throw e;
   }
+}
+
+/** background results (e.g. a finished stabiliser render) written without an undo step */
+export function patchProjectSilently(fn: (p: Project) => void) {
+  const next = produce(S().project, (d) => { fn(d as Project); });
+  set({ project: next, dirty: true });
+  window.kurgu?.journal(next);
 }
 
 /** apply a change to the whole project */

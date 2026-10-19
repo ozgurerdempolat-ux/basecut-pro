@@ -29,9 +29,18 @@ export interface MediaAssets {
   proxy?: string;
 }
 
+export interface StabilizeRequest {
+  key: string;
+  path: string;
+  range: [number, number];
+  fps: number;
+  params: import('../core/stabilize').StabParams;
+  label: string;
+}
+
 export interface JobProgress {
   jobId: string;
-  kind: 'export' | 'proxy' | 'analyze' | 'transcribe';
+  kind: 'export' | 'proxy' | 'analyze' | 'transcribe' | 'stabilize';
   label: string;
   progress: number; // 0..1
   done?: boolean;
@@ -41,7 +50,7 @@ export interface JobProgress {
 
 export interface WorkerRequest {
   id: string;
-  type: 'probe' | 'assets' | 'export' | 'proxy' | 'cancel' | 'frame' | 'speechAudio';
+  type: 'probe' | 'assets' | 'export' | 'proxy' | 'cancel' | 'frame' | 'speechAudio' | 'stabilize';
   payload: unknown;
 }
 
@@ -75,6 +84,8 @@ export interface KurguApi {
   probe(paths: string[]): Promise<(ProbeResult | { path: string; error: string })[]>;
   assets(path: string): Promise<MediaAssets>;
   makeProxy(path: string): Promise<string>;
+  /** Warp Stabilizer: analyse + render the stabilised intermediate (cached by key); resolves to its path */
+  stabilize(req: StabilizeRequest): Promise<string>;
   exportSequence(req: ExportRequest): Promise<{ jobId: string }>;
   cancelJob(jobId: string): Promise<void>;
   onJob(cb: (p: JobProgress) => void): () => void;

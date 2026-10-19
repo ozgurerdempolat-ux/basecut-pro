@@ -5,6 +5,7 @@
 import { AnimatableParam, Clip, MediaItem, Project, Sequence, clipEnd, clipSrcSpan, sequenceDuration } from './model';
 import { EFFECT_BY_ID, TRANSITION_BY_ID, motionOf, transitionWindows } from './fx';
 import { IMPACT_BY_ID, impactFilters } from './impact';
+import { stabilizedSource } from './stabilize';
 import { AUDIO_TRANSITIONS, audioFxChain } from './audiofx';
 
 export type VideoCodec = 'h264' | 'hevc' | 'prores' | 'vp9' | 'gif' | 'none';
@@ -158,24 +159,28 @@ export function buildRenderPlan(
       const lenOut = (b - a) / F;
       const speed = Math.abs(c.speed) || 1;
       const isImg = m.kind === 'image';
-      const D = Number.isFinite(m.duration) ? m.duration : Infinity;
+      // Warp Stabilizer: read the stabilised render instead of the original (same frames, shifted time base)
+      const stab = stabilizedSource(c, m, F);
+      const srcPath = stab ? stab.path : resolvePath(m);
+      const off = stab ? stab.offset : 0;
+      const D = stab ? stab.duration : Number.isFinite(m.duration) ? m.duration : Infinity;
       const i = inputIndex++;
       const chain: string[] = [];
       if (c.freeze !== undefined && !isImg) {
         // frame hold: one decoded frame, repeated
-        const t = Math.max(0, Math.min(c.freeze, (Number.isFinite(D) ? D : c.freeze + 1) - 1 / F));
-        args.push('-ss', r6(t), '-t', r6(2 / F + 0.1), '-i', resolvePath(m));
+        const t = Math.max(0, Math.min(c.freeze - off, (Number.isFinite(D) ? D : c.freeze + 1) - 1 / F));
+        args.push('-ss', r6(t), '-t', r6(2 / F + 0.1), '-i', srcPath);
         chain.push('trim=end_frame=1', 'setpts=PTS-STARTPTS', `fps=${r6(fps)}`, `tpad=stop_mode=clone:stop_duration=${r6(lenOut + 1 / fps)}`, `trim=duration=${r6(lenOut)}`);
       } else if (isImg) {
-        args.push('-loop', '1', '-framerate', r6(fps), '-t', r6(lenOut + 1 / fps), '-i', resolvePath(m));
+        args.push('-loop', '1', '-framerate', r6(fps), '-t', r6(lenOut + 1 / fps), '-i', srcPath);
         chain.push(`trim=duration=${r6(lenOut)}`, 'setpts=PTS-STARTPTS', `fps=${r6(fps)}`);
       } else {
-        const sa = srcAt(c, a), sb = srcAt(c, b);
+        const sa = srcAt(c, a) - off, sb = srcAt(c, b) - off;
         const s0 = Math.min(sa, sb), s1 = Math.max(sa, sb);
         const lo = Math.max(0, s0), hi = Math.min(D - 0.001, s1);
         const missingHead = Math.max(0, lo - s0), missingTail = Math.max(0, s1 - hi);
         const srcLen = Math.max(1 / F, hi - lo);
-        args.push('-ss', r6(lo), '-t', r6(srcLen + 1 / fps), '-i', resolvePath(m));
+        args.push('-ss', r6(lo), '-t', r6(srcLen + 1 / fps), '-i', srcPath);
         chain.push(`trim=duration=${r6(srcLen)}`);
         if (c.speed < 0) chain.push('reverse');
         chain.push(`setpts=(PTS-STARTPTS)/${r6(speed)}`, `fps=${r6(fps)}`);
@@ -194,7 +199,7 @@ export function buildRenderPlan(
         const def = EFFECT_BY_ID[e.type];
         if (!def) continue;
         if (def.kind === 'blurfill') { blurfill = e.params; continue; }
-        if (def.kind === 'motion') continue;
+        if (def.kind === 'motion' || def.kind === 'stabilize') continue;
         const fstr = def.ffmpeg(e.params, { fps, W, H, sw, sh });
         if (fstr && fstr !== 'null') chain.push(fstr);
       }

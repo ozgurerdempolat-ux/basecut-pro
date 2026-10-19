@@ -14,17 +14,19 @@ export interface FxParamDef {
   unit?: string;
   /** shown as a colour picker; value stored as 0xRRGGBB */
   color?: boolean;
+  /** shown as a dropdown: value = index */
+  options?: string[];
 }
 
 export interface FxDef {
   id: string;
   name: string;
-  category: 'Bulanıklık ve netlik' | 'Renk ve stil' | 'Bozulma' | 'Stilize' | 'Hareket' | 'Anahtarlama' | 'Kadraj';
+  category: 'Sabitleme' | 'Bulanıklık ve netlik' | 'Renk ve stil' | 'Bozulma' | 'Stilize' | 'Hareket' | 'Anahtarlama' | 'Kadraj';
   params: FxParamDef[];
   /** ffmpeg filter chain for one clip; input is the decoded clip at its source size (sw×sh), output same size */
   ffmpeg: (p: Record<string, number>, ctx: { fps: number; W: number; H: number; sw: number; sh: number }) => string;
   /** 'motion' effects change the clip's position/scale (see motionOf) instead of filtering pixels */
-  kind?: 'filter' | 'motion' | 'blurfill';
+  kind?: 'filter' | 'motion' | 'blurfill' | 'stabilize';
   /** needs alpha in the output (keying) */
   alpha?: boolean;
   desc?: string;
@@ -55,6 +57,20 @@ export const JITTER = {
 };
 
 export const EFFECTS: FxDef[] = [
+  // --------------------------------------------------- stabilisation (rendered in the background, core/stabilize.ts)
+  {
+    id: 'warpstab', name: 'Warp Stabilizer (sabitleyici)', category: 'Sabitleme', kind: 'stabilize',
+    desc: 'Titrek elde çekimi pürüzsüzleştirir ya da tripod gibi sabitler. Arka planda analiz eder; önizleme ve dışa aktarım birebir aynıdır.',
+    params: [
+      { key: 'mode', label: 'Sonuç', min: 0, max: 1, step: 1, def: 0, options: ['Pürüzsüz hareket', 'Hareketsiz (tripod)'] },
+      { key: 'smooth', label: 'Pürüzsüzlük', min: 0, max: 100, step: 1, def: 50, unit: '%' },
+      { key: 'edges', label: 'Kenarlar', min: 0, max: 3, step: 1, def: 0, options: ['Kırp ve büyüt (otomatik)', 'Uyarlamalı zoom', 'Kenarları sentezle', 'Siyah kenar (kırpma yok)'] },
+      { key: 'zoom', label: 'Ek ölçek', min: 0, max: 40, step: 1, def: 0, unit: '%' },
+      { key: 'sharpen', label: 'Netleştir', min: 0, max: 100, step: 1, def: 30, unit: '%' },
+      { key: 'detail', label: 'Analiz', min: 0, max: 1, step: 1, def: 0, options: ['Hızlı', 'Detaylı (az dokulu çekimler)'] },
+    ],
+    ffmpeg: () => 'null',
+  },
   // --------------------------------------------------- blur & sharpen
   {
     id: 'blur', name: 'Gauss bulanıklığı', category: 'Bulanıklık ve netlik',

@@ -22,7 +22,7 @@ export function applyEffects(c: HTMLCanvasElement, effects: ClipEffect[], L: num
   for (const e of effects) {
     if (!e.enabled) continue;
     const def = EFFECT_BY_ID[e.type];
-    if (!def || def.kind === 'motion' || def.kind === 'blurfill') continue;
+    if (!def || def.kind === 'motion' || def.kind === 'blurfill' || def.kind === 'stabilize') continue;
     const p = e.params;
     const viaFilter = (filter: string) => {
       const t = tmpCanvas(w, h);

@@ -571,6 +571,34 @@ await page.click('.modes button:has-text("Kurgu")').catch(() => {});
   await shot(page, '20-anahtar-kare-seridi');
 }
 
+// ---- Warp Stabilizer (background analysis + render)
+{
+  const cid = await page.evaluate(() => {
+    const k = window.__kurgu.store; const s = k.committedSeq();
+    const c = Object.values(s.clips).filter((x) => x.stream === 'video' && k.useStore.getState().project.media[x.mediaId]?.kind === 'video' && x.freeze === undefined).sort((a, b) => b.duration - a.duration)[0];
+    k.selectClips([c.id], false); k.setPlayhead(c.start + 5);
+    k.useStore.setState({ leftTab: 'effects' });
+    return c.id;
+  });
+  await page.waitForSelector('.fx-item:has-text("Warp Stabilizer")');
+  await page.dblclick('.fx-item:has-text("Warp Stabilizer")');
+  await page.waitForSelector('.stab-badge', { timeout: 5000 });
+  const sawBanner = await page.waitForSelector('.stab-banner', { timeout: 5000 }).then(() => true).catch(() => false);
+  await shot(page, '21-warp-analiz');
+  const t0 = Date.now();
+  await page.waitForFunction((id) => !!window.__kurgu.store.committedSeq().clips[id]?.stab, cid, { timeout: 240000 });
+  const secs = ((Date.now() - t0) / 1000).toFixed(1);
+  await page.waitForTimeout(800);
+  const status = await page.$eval('.stab-status', (x) => x.textContent).catch(() => '');
+  check('Warp Stabilizer arka planda analiz edip uyguladı', status.includes('Sabitlendi') && sawBanner, `${secs} sn · ${status}`);
+  // changing smoothness re-renders without re-analysing (fast) and keeps working
+  await page.evaluate((id) => window.__kurgu.store.edit('pürüzsüzlük', (s) => { s.clips[id].effects.find((e) => e.type === 'warpstab').params.smooth = 80; }), cid);
+  const t1 = Date.now();
+  await page.waitForFunction((id) => { const c = window.__kurgu.store.committedSeq().clips[id]; return c.stab && c.stab.key.includes('|80|'); }, cid, { timeout: 240000 });
+  check('Ayar değişince yeniden analiz etmeden günceller', true, `${((Date.now() - t1) / 1000).toFixed(1)} sn`);
+  await shot(page, '22-warp-hazir');
+}
+
 // ---- audio mixer, ducking, voice-over
 {
   await page.click('.panel-tabs .tab:has-text("Mikser")');

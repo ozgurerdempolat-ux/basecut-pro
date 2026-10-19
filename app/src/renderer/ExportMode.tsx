@@ -1,3 +1,4 @@
+import { needsStabilize } from '../core/stabilize';
 import { useEffect, useMemo, useState } from 'react';
 import { clipEnd, framesToTimecode, sequenceDuration } from '../core/model';
 import { EXPORT_PRESETS, ExportSettings, defaultExport } from '../core/render-graph';
@@ -27,6 +28,8 @@ function preflight(settings: ExportSettings): Issue[] {
   let covered = 0;
   let gaps = 0;
   for (const c of vids) { if (c.start > covered + 1) gaps++; covered = Math.max(covered, clipEnd(c)); }
+  const unstab = Object.values(seq.clips).filter((c) => needsStabilize(c, st.project.media[c.mediaId], seq.fps));
+  if (unstab.length) issues.push({ level: 'err', text: `Warp Stabilizer ${unstab.length} klipte hâlâ analiz ediyor. Bitince dışa aktarın (zaman çizelgesinde ilerlemeyi görebilirsiniz) — aksi halde titrek çıkar.` });
   if (gaps) issues.push({ level: 'warn', text: `${gaps} yerde video yok (siyah boşluk).` });
   // mismatched frame rates
   const mismatched = [...used].map((id) => st.project.media[id]).filter((m) => m && m.kind === 'video' && Math.abs(m.fps - seq.fps) > 0.05);

@@ -10,6 +10,7 @@ import { grader } from './grader';
 import { isNeutral } from '../core/color';
 import { EFFECT_BY_ID, motionAt, transitionWindows } from '../core/fx';
 import { IMPACT_BY_ID } from '../core/impact';
+import { stabilizedSource } from '../core/stabilize';
 import { applyEffects, drawBlurFill, drawTransition, release, tmpCanvas } from './fxPreview';
 import { AUDIO_FX_BY_ID, AUDIO_TRANSITIONS, PreviewNode, fadeGain } from '../core/audiofx';
 
@@ -129,8 +130,8 @@ class Player {
     if (now - this.fpsMeter.last > 1000) { this.fpsMeter.value = this.fpsMeter.drawn; this.fpsMeter.drawn = 0; this.fpsMeter.last = now; }
   };
 
-  private visualFor(c: Clip, m: MediaItem): Visual | null {
-    const path = playbackPath(m);
+  private visualFor(c: Clip, m: MediaItem, override?: string): Visual | null {
+    const path = override ?? playbackPath(m);
     if (!path || !m.online) return null;
     let v = this.visuals.get(c.id);
     if (v && v.path !== path) { this.dispose(c.id); v = undefined; }
@@ -230,17 +231,20 @@ class Player {
   }
 
   private preroll(c: Clip, m: MediaItem, seq: Sequence) {
-    const v = this.visualFor(c, m);
+    const stab = stabilizedSource(c, m, seq.fps);
+    const v = this.visualFor(c, m, stab?.path);
     if (v && v.el instanceof HTMLVideoElement) {
-      const t0 = this.srcTime(c, m, c.start, seq.fps);
+      const t0 = Math.max(0, this.srcTime(c, m, c.start, seq.fps) - (stab?.offset ?? 0));
       if (Math.abs(v.el.currentTime - t0) > 0.05 && v.el.paused) v.el.currentTime = t0;
     }
   }
 
   private drawClipAt(ctx: CanvasRenderingContext2D, c: Clip, m: MediaItem, frame: number, W: number, H: number, seq: Sequence, res: number, playing: boolean, rate: number) {
-    const v = this.visualFor(c, m);
+    // Warp Stabilizer: play the stabilised render (time base starts at its range start)
+    const stab = stabilizedSource(c, m, seq.fps);
+    const v = this.visualFor(c, m, stab?.path);
     if (!v) { this.drawOffline(ctx, W, H, m); return; }
-    const srcT = this.srcTime(c, m, frame, seq.fps);
+    const srcT = Math.max(0, this.srcTime(c, m, frame, seq.fps) - (stab?.offset ?? 0));
     if (v.el instanceof HTMLVideoElement) {
       const el = v.el;
       const forward = playing && c.speed > 0 && rate > 0 && c.freeze === undefined;

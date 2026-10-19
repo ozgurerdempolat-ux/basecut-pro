@@ -97,15 +97,15 @@ Clip labels and renaming in timeline,timeline,should,yes,no,
 Enable / disable clip,timeline,must,yes,yes,
 Group / ungroup clips,timeline,should,yes,no,Ctrl+G
 Nudge / slide / slip clips by 1 and 5 frames,timeline,should,yes,yes,Alt+arrows
-Copy / paste / paste insert / paste attributes,timeline,must,yes,no,
-Remove attributes,timeline,should,yes,no,
+Copy / paste / paste insert / paste attributes,timeline,must,yes,yes,
+Remove attributes,timeline,should,yes,yes,
 Duplicate detection highlighting,timeline,could,yes,no,
 Nested sequences (nest / open / reveal),timeline,must,yes,no,
 Multiple sequences as tabs,timeline,must,yes,no,
 Work area bar,timeline,could,yes,no,
 Markers: add / edit / colors / duration / types,timeline,must,yes,partial,M
 Markers panel,timeline,should,yes,no,S27
-Match frame / reverse match frame,timeline,should,yes,no,F
+Match frame / reverse match frame,timeline,should,yes,yes,F
 Scene edit detection,timeline,should,yes,no,S33
 Selection tool,tools,must,yes,yes,V
 Track select forward / backward,tools,must,yes,yes,A / Shift+A
@@ -127,17 +127,17 @@ Asymmetric trimming,trim,could,yes,no,
 Speed/Duration dialog with reverse and maintain pitch,speed,must,yes,yes,Ctrl+R
 Time interpolation: frame sampling / blending / optical flow,speed,should,yes,partial,
 Time remapping with speed ramps,speed,must,yes,no,S30
-Freeze frame (frame hold / hold segment),speed,must,yes,no,
+Freeze frame (frame hold / hold segment),speed,must,yes,yes,
 Multi-camera source sequence (sync by timecode/audio/in/marker),multicam,must,yes,no,F13
 Multi-camera live switching in monitor,multicam,must,yes,no,S20
 Up to 16 angles,multicam,should,yes,no,
 Flatten multicam,multicam,should,yes,no,
 Effect Controls panel with intrinsic Motion/Opacity/Volume,effects,must,yes,yes,S36
 Keyframes with stopwatch per property,effects,must,yes,yes,
-Keyframe interpolation linear / bezier / auto / continuous / hold,effects,must,yes,no,
-Ease in / ease out,effects,must,yes,no,
+Keyframe interpolation linear / bezier / auto / continuous / hold,effects,must,yes,yes,
+Ease in / ease out,effects,must,yes,yes,
 Speed and value graph editing,effects,should,yes,no,
-Copy/paste keyframes and effects across clips,effects,must,yes,no,
+Copy/paste keyframes and effects across clips,effects,must,yes,yes,
 Effect presets save / apply,effects,should,yes,no,
 Effects panel with search and custom bins,effects,must,yes,yes,S35
 Effect bypass toggle,effects,must,yes,yes,
@@ -149,8 +149,8 @@ Adjust effects bin,effects-lib,should,yes,no,
 Blur & sharpen effects (Gaussian / directional / camera blur / unsharp / sharpen),effects-lib,must,yes,yes,
 Channel effects,effects-lib,could,yes,no,
 Color correction effects,effects-lib,should,yes,no,
-Distort effects (warp stabilizer / lens distortion / corner pin / offset / mirror / twirl / wave warp / rolling shutter repair),effects-lib,must,yes,no,
-Warp stabilizer,effects-lib,must,yes,no,critical for phone footage
+Distort effects (warp stabilizer / lens distortion / corner pin / offset / mirror / twirl / wave warp / rolling shutter repair),effects-lib,must,yes,partial,
+Warp stabilizer,effects-lib,must,yes,yes,critical for phone footage
 Generate effects (4-color gradient / ramp / lens flare / lightning / circle / grid),effects-lib,should,yes,no,
 Image control effects (B&W / color pass / color replace / gamma),effects-lib,should,yes,yes,
 Immersive (VR 360) effects,effects-lib,could,yes,no,
@@ -166,7 +166,7 @@ Video transitions: cross dissolve / dip to black / dip to white / film dissolve 
 Video transitions: slide / push / wipe / iris / zoom / page peel / 3D motion,transitions,should,yes,yes,
 Morph cut (jump cut smoothing),transitions,should,yes,no,
 Default transition with Ctrl+D,transitions,must,yes,yes,
-Transition duration / alignment / reverse / border,transitions,must,yes,partial,
+Transition duration / alignment / reverse / border,transitions,must,yes,yes,
 Audio transitions: constant power / constant gain / exponential fade,transitions,must,yes,yes,
 Text: type in Program Monitor,graphics,must,yes,partial,F07
 Text styling: font / size / weight / tracking / kerning / leading / alignment,graphics,must,yes,partial,
@@ -272,7 +272,7 @@ Keyboard shortcut editor with visual keyboard and conflict detection,ui,must,yes
 Premiere-style keymap preset,ui,must,no,no,lowers switching cost; functional mapping only
 FCP7 / Avid keymap presets,ui,could,yes,no,
 Preferences (~20 tabs),ui,must,yes,no,S54
-Context menus on every object,ui,must,yes,partial,
+Context menus on every object,ui,must,yes,yes,
 Localization: Turkish UI,ui,must,no,yes,our market; Premiere TR exists but partial
 Localization: English UI,ui,must,yes,no,
 Accessibility: keyboard navigation / screen reader labels,ui,should,yes,no,

@@ -4,12 +4,13 @@
 
 import { ChildProcess, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, statSync, writeFileSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync, statSync, writeFileSync, readFileSync } from 'node:fs';
 import { basename, extname, join } from 'node:path';
 import { buildRenderPlan } from '../core/render-graph';
 import { bakeLut, gradeKey, isNeutral, parseCube, toCube } from '../core/color';
 import type { Clip } from '../core/model';
-import type { ExportRequest, MediaAssets, ProbeResult, WorkerRequest, WorkerResponse } from '../shared/ipc';
+import type { ExportRequest, MediaAssets, ProbeResult, StabilizeRequest, WorkerRequest, WorkerResponse } from '../shared/ipc';
+import { detectArgs, transformArgs } from '../core/stabilize';
 import { FFMPEG, FFPROBE } from './ffbin';
 
 const port = (process as unknown as { parentPort: { on(e: 'message', cb: (m: { data: WorkerRequest }) => void): void; postMessage(m: WorkerResponse): void } }).parentPort;
@@ -152,9 +153,45 @@ async function proxy(path: string, jobId: string): Promise<string> {
       if (m && info.duration > 0) send({ id: jobId, progress: Math.min(0.99, Number(m[1]) / 1e6 / info.duration) });
     },
   });
-  const { renameSync } = await import('node:fs');
   renameSync(tmp, out);
   return out;
+}
+
+// ------------------------------------------------------------------ warp stabilizer
+
+const stabRuns = new Map<string, Promise<string>>();
+
+async function stabilize(req: StabilizeRequest, jobId: string): Promise<string> {
+  const dir = join(CACHE, 'stab');
+  mkdirSync(dir, { recursive: true });
+  const h = createHash('sha1').update(`${req.key}|${cacheKey(req.path)}`).digest('hex').slice(0, 20);
+  const out = join(dir, `${h}.mp4`);
+  if (existsSync(out)) { send({ id: jobId, progress: 1 }); return out; }
+  // the same request twice (e.g. undo/redo while it runs) shares one render
+  const already = stabRuns.get(out);
+  if (already) return already;
+  const p = (async () => {
+    // motion analysis depends only on the source range and analysis settings, so changing
+    // smoothness / edges / zoom re-renders without analysing again
+    const ah = createHash('sha1').update(`${cacheKey(req.path)}|${req.range[0].toFixed(3)}|${req.range[1].toFixed(3)}|${req.params.mode}|${req.params.detail}`).digest('hex').slice(0, 20);
+    const trf = join(dir, `${ah}.trf`);
+    const tmp = join(dir, `${h}.part.mp4`);
+    const len = Math.max(0.001, req.range[1] - req.range[0]);
+    const prog = (base: number, span: number) => (s: string) => {
+      const m = /out_time_us=(\d+)/.exec(s);
+      if (m) send({ id: jobId, progress: Math.min(0.99, base + span * Math.min(1, Number(m[1]) / 1e6 / len)) });
+    };
+    const analysed = existsSync(trf);
+    if (!analysed) {
+      await run(FFMPEG, detectArgs(req.path, req.range, trf + '.part', req.params), { jobId, onStdout: prog(0, 0.55) });
+      renameSync(trf + '.part', trf);
+    }
+    await run(FFMPEG, transformArgs(req.path, req.range, trf, tmp, req.params, req.fps), { jobId, onStdout: analysed ? prog(0, 1) : prog(0.55, 0.45) });
+    renameSync(tmp, out);
+    return out;
+  })();
+  stabRuns.set(out, p);
+  try { return await p; } finally { stabRuns.delete(out); }
 }
 
 // ------------------------------------------------------------------ export
@@ -226,6 +263,7 @@ port.on('message', async ({ data }) => {
       case 'probe': result = await probe(payload as string); break;
       case 'assets': result = await assets(payload as string); break;
       case 'proxy': result = await proxy(payload as string, id); break;
+      case 'stabilize': result = await stabilize(payload as StabilizeRequest, id); break;
       case 'export': result = await exportSeq(payload as ExportRequest, id); break;
       case 'frame': result = await frame(payload as { path: string; time: number; out: string }); break;
       case 'speechAudio': result = await speechAudio(payload as { project: import('../core/model').Project; sequenceId: string; trackIds: string[] }, id); break;

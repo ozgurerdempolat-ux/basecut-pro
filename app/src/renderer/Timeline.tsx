@@ -4,6 +4,8 @@ import * as ops from '../core/ops';
 import { I } from './icons';
 import { FX_MIME, FxDrag, addAudioEffect, addEffect, addTransition, transitionTarget } from './Effects';
 import { clipMenu, laneMenu, trackMenu, transitionMenu } from './menus';
+import { stabilizedSource } from '../core/stabilize';
+import { stabStatus } from './stabilizer';
 import { TRANSITION_BY_ID, transitionWindows } from '../core/fx';
 import { AUDIO_TRANSITIONS } from '../core/audiofx';
 import { player } from './player';
@@ -737,6 +739,7 @@ const ClipView = memo(function ClipView({ clip, zoom, height, selected, tool, on
       title={`${clip.name}\n${framesToTimecode(clip.start, fps)} → ${framesToTimecode(clipEnd(clip), fps)} (${framesToTimecode(clip.duration, fps)})${clip.speed !== 1 ? `\nHız %${Math.round(clip.speed * 100)}` : ''}`}>
       <div className="cname">{clip.name}{clip.speed !== 1 && <span className="speed">%{Math.round(clip.speed * 100)}</span>}</div>
       {hasFx && <div className="fx">fx</div>}
+      {clip.stream === 'video' && (clip.effects ?? []).some((e) => e.type === 'warpstab' && e.enabled) && <StabBadge clip={clip} media={media} fps={fps} />}
       {stripStyle && <div className="strip" style={stripStyle} />}
       {clip.stream === 'audio' && assets?.peaks && <Wave clip={clip} zoom={zoom} height={height - 4} width={width} peaks={assets.peaks} pps={assets.peaksPerSecond ?? 50} fps={fps} />}
       {clip.stream === 'audio' && <div className="rubber" style={{ top: `${Math.max(14, Math.min(height - 6, (height - 4) * (0.35 - clip.volumeDb.value / 60)))}px` }} />}
@@ -779,3 +782,16 @@ function Wave({ clip, zoom, height, width, peaks, pps, fps }: { clip: Clip; zoom
 }
 
 export { toast };
+
+function StabBadge({ clip, media, fps }: { clip: Clip; media: import('../core/model').MediaItem | undefined; fps: number }) {
+  useStore((s) => s.stabTick);
+  if (!media) return null;
+  const done = stabilizedSource(clip, media, fps);
+  const st = stabStatus.get(clip.id);
+  if (done) return <div className="stab-badge ok" title="Warp Stabilizer hazır">⌖</div>;
+  return (
+    <div className={`stab-badge ${st?.state === 'error' ? 'err' : 'run'}`} title="Warp Stabilizer">
+      {st?.state === 'error' ? 'Sabitleme hatası' : st?.state === 'running' ? `Analiz %${Math.round(st.progress * 100)}` : 'Sabitleme sırada'}
+    </div>
+  );
+}

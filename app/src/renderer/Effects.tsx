@@ -3,6 +3,8 @@ import { ClipEffect, EFFECTS, EFFECT_BY_ID, FxParamDef, TRANSITIONS, TRANSITION_
 import { AUDIO_EFFECTS, AUDIO_FX_BY_ID, AUDIO_TRANSITIONS, AudioEffect, AudioFxParam, defaultAudioParams } from '../core/audiofx';
 import { Clip, Sequence, clipEnd, framesToTimecode, newId } from '../core/model';
 import { I } from './icons';
+import { stabilizedSource } from '../core/stabilize';
+import { retryStabilize, stabStatus } from './stabilizer';
 import { HotNumber } from './Panels';
 import { activeSeq, committedSeq, edit, toast, useStore } from './store';
 
@@ -27,7 +29,7 @@ export function addEffect(clipIds: string[], type: string) {
       if (!c || c.stream !== 'video') continue;
       const list = c.effects ?? (c.effects = []);
       // one background fill per clip is enough
-      if (def.kind === 'blurfill' && list.some((e) => e.type === 'blurfill')) continue;
+      if ((def.kind === 'blurfill' || def.kind === 'stabilize') && list.some((e) => e.type === type)) continue;
       list.push({ id: newId('fx'), type, enabled: true, params: defaultParams(type) });
       n++;
     }
@@ -318,7 +320,8 @@ export function EffectStack({ clip }: { clip: Clip }) {
               <button className="icon-btn" title="Sıfırla" onClick={() => mutate('Efekti sıfırla', (l) => { l[i].params = defaultParams(e.type); })}>{I.reset}</button>
               <button className="icon-btn" title="Kaldır" onClick={() => mutate('Efekti kaldır', (l) => { l.splice(i, 1); })}>{I.close}</button>
             </div>
-            {def.params.map((p) => <FxParam key={p.key} def={p} value={e.params[p.key] ?? p.def} onChange={(v) => mutate(`${def.name}: ${p.label}`, (l) => { l[i].params[p.key] = v; })} />)}
+            {def.params.filter((p) => !(e.type === 'warpstab' && p.key === 'smooth' && (e.params.mode ?? 0) === 1)).map((p) => <FxParam key={p.key} def={p} value={e.params[p.key] ?? p.def} onChange={(v) => mutate(`${def.name}: ${p.label}`, (l) => { l[i].params[p.key] = v; })} />)}
+            {def.kind === 'stabilize' && <StabStatusLine clip={clip} />}
           </div>
         );
       })}
@@ -327,6 +330,12 @@ export function EffectStack({ clip }: { clip: Clip }) {
 }
 
 function FxParam({ def, value, onChange }: { def: FxParamDef; value: number; onChange: (v: number) => void }) {
+  if (def.options) {
+    return (
+      <div className="fx-row"><span /><span className="lbl">{def.label}</span>
+        <select className="mini" value={Math.round(value)} onChange={(e) => onChange(Number(e.target.value))}>{def.options.map((o, i) => <option key={o} value={i}>{o}</option>)}</select><span /></div>
+    );
+  }
   if (def.color) {
     const hex = `#${Math.round(value).toString(16).padStart(6, '0')}`;
     return (
@@ -361,4 +370,25 @@ export function transitionTarget(seq: Sequence, trackId: string, frame: number, 
   const under = clips.find((c) => frame >= c.start && frame < clipEnd(c));
   if (!under) return null;
   return frame - under.start <= clipEnd(under) - frame ? { clip: under, side: 'in' } : { clip: under, side: 'out' };
+}
+
+function StabStatusLine({ clip }: { clip: Clip }) {
+  useStore((s) => s.stabTick);
+  const seq = useStore((s) => activeSeq(s));
+  const m = useStore((s) => s.project.media[clip.mediaId]);
+  const st = stabStatus.get(clip.id);
+  const ok = m && stabilizedSource(clip, m, seq.fps);
+  let text: string, cls = '';
+  if (!m || m.kind !== 'video') { text = 'Sabitleyici yalnızca video kliplerde çalışır.'; cls = 'err'; }
+  else if (ok) { text = '✓ Sabitlendi — önizleme ve dışa aktarım aynı sonucu kullanıyor.'; cls = 'ok'; }
+  else if (st?.state === 'running') text = st.progress < 0.01 ? 'Analiz başlıyor…' : `Arka planda analiz ediliyor… %${Math.round(st.progress * 100)}`;
+  else if (st?.state === 'error') { text = `Hata: ${st.error}`; cls = 'err'; }
+  else text = 'Sırada — birazdan başlayacak.';
+  return (
+    <div className={`stab-status ${cls}`}>
+      {text}
+      {st?.state === 'running' && <div className="stab-bar"><div style={{ width: `${Math.round(st.progress * 100)}%` }} /></div>}
+      {st?.state === 'error' && <button className="btn small" onClick={retryStabilize}>Tekrar dene</button>}
+    </div>
+  );
 }

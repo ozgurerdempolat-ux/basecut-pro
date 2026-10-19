@@ -5,7 +5,7 @@ import { cpus, totalmem } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import type { Project } from '../core/model';
-import type { ExportRequest, JobProgress, SystemInfo, WorkerRequest, WorkerResponse } from '../shared/ipc';
+import type { ExportRequest, JobProgress, StabilizeRequest, SystemInfo, WorkerRequest, WorkerResponse } from '../shared/ipc';
 import { FFMPEG } from './ffbin';
 
 const APP_NAME = 'BaseCut Pro';
@@ -283,6 +283,7 @@ function registerIpc() {
   });
   ipcMain.handle('probe', async (_e, paths: string[]) => Promise.all(paths.map((p) => ask('probe', p).promise.catch((err: Error) => ({ path: p, error: err.message })))));
   ipcMain.handle('assets', (_e, path: string) => ask('assets', path).promise);
+  ipcMain.handle('stabilize', (_e, req: StabilizeRequest) => ask<string>('stabilize', req, { kind: 'stabilize', label: req.label }).promise);
   ipcMain.handle('makeProxy', (_e, path: string) => ask('proxy', path, { kind: 'proxy', label: `Proxy: ${path.split(/[\\/]/).pop()}` }).promise);
   ipcMain.handle('exportSequence', (_e, req: ExportRequest) => {
     const { id, promise } = ask('export', req, { kind: 'export', label: `Dışa aktarılıyor: ${req.settings.output.split(/[\\/]/).pop()}` });

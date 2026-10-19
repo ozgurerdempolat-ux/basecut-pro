@@ -35,6 +35,7 @@ const api: KurguApi = {
   writeBinary: (path, data) => ipcRenderer.invoke('writeBinary', path, data),
   writeCache: (name, data) => ipcRenderer.invoke('writeCache', name, data),
   saveRecording: (name, data) => ipcRenderer.invoke('saveRecording', name, data),
+  stabilize: (req) => ipcRenderer.invoke('stabilize', req),
   micAccess: () => ipcRenderer.invoke('micAccess'),
   saveText: (name, ext, content) => ipcRenderer.invoke('saveText', name, ext, content),
   openText: (exts) => ipcRenderer.invoke('openText', exts),

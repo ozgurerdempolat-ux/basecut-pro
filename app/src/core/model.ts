@@ -139,6 +139,8 @@ export interface Clip {
   audioFx?: import('./audiofx').AudioEffect[];
   /** frame hold: the clip shows this source time (seconds) as a still, silent */
   freeze?: number;
+  /** finished Warp Stabilizer render for this clip (see core/stabilize.ts) */
+  stab?: import('./stabilize').StabResult;
 }
 
 export interface Marker {
