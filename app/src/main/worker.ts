@@ -22,14 +22,14 @@ const running = new Map<string, ChildProcess>();
 
 function send(m: WorkerResponse) { port.postMessage(m); }
 
-function run(bin: string, args: string[], opts: { jobId?: string; onStdout?: (s: string) => void; binary?: boolean } = {}): Promise<Buffer> {
+function run(bin: string, args: string[], opts: { jobId?: string; onStdout?: (s: string) => void; onStderr?: (s: string) => void; binary?: boolean } = {}): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const p = spawn(bin, args, { windowsHide: true });
     if (opts.jobId) running.set(opts.jobId, p);
     const out: Buffer[] = [];
     let err = '';
     p.stdout.on('data', (d: Buffer) => { out.push(d); opts.onStdout?.(d.toString()); });
-    p.stderr.on('data', (d: Buffer) => { err += d.toString(); if (err.length > 20000) err = err.slice(-20000); });
+    p.stderr.on('data', (d: Buffer) => { const t = d.toString(); opts.onStderr?.(t); err += t; if (err.length > 20000) err = err.slice(-20000); });
     p.on('error', reject);
     p.on('close', (code, signal) => {
       if (opts.jobId) running.delete(opts.jobId);
@@ -156,6 +156,16 @@ async function proxy(path: string, jobId: string): Promise<string> {
   });
   renameSync(tmp, out);
   return out;
+}
+
+// ------------------------------------------------------------------ loudness (EBU R128)
+
+async function loudness(req: { path: string; range: [number, number] }, jobId: string): Promise<{ I: number; LRA: number; TP: number }> {
+  let err = '';
+  await run(FFMPEG, ['-hide_banner', '-nostdin', '-ss', String(req.range[0]), '-t', String(Math.max(0.1, req.range[1] - req.range[0])), '-i', req.path, '-vn', '-af', 'ebur128=peak=true:framelog=quiet', '-f', 'null', '-'], { jobId, onStderr: (s) => { err += s; } });
+  const tail = err.slice(err.lastIndexOf('Summary:'));
+  const g = (re: RegExp) => { const m = re.exec(tail); return m ? Number(m[1]) : NaN; };
+  return { I: g(/I:\s+(-?[\d.]+) LUFS/), LRA: g(/LRA:\s+(-?[\d.]+) LU/), TP: g(/Peak:\s+(-?[\d.]+) dBFS/) };
 }
 
 // ------------------------------------------------------------------ audio envelope (multicam sync)
@@ -303,6 +313,7 @@ port.on('message', async ({ data }) => {
       case 'assets': result = await assets(payload as string); break;
       case 'proxy': result = await proxy(payload as string, id); break;
       case 'stabilize': result = await stabilize(payload as StabilizeRequest, id); break;
+      case 'loudness': result = await loudness(payload as { path: string; range: [number, number] }, id); break;
       case 'envelope': result = await envelope(payload as { path: string; rate: number; maxSec: number }, id); break;
       case 'reframe': result = await reframe(payload as { path: string; range: [number, number]; perSecond: number; width: number; height: number }, id); break;
       case 'export': result = await exportSeq(payload as ExportRequest, id); break;

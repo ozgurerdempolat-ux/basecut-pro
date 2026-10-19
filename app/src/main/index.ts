@@ -290,6 +290,7 @@ function registerIpc() {
   ipcMain.handle('probe', async (_e, paths: string[]) => Promise.all(paths.map((p) => ask('probe', p).promise.catch((err: Error) => ({ path: p, error: err.message })))));
   ipcMain.handle('assets', (_e, path: string) => ask('assets', path).promise);
   ipcMain.handle('stabilize', (_e, req: StabilizeRequest) => ask<string>('stabilize', req, { kind: 'stabilize', label: req.label }).promise);
+  ipcMain.handle('measureLoudness', (_e, req: { label: string }) => ask('loudness', req, { kind: 'analyze', label: req.label }).promise);
   ipcMain.handle('audioEnvelope', (_e, req: { label: string }) => ask('envelope', req, { kind: 'analyze', label: req.label }).promise);
   ipcMain.handle('reframeAnalyze', (_e, req: { label: string }) => ask('reframe', req, { kind: 'analyze', label: req.label }).promise);
   ipcMain.handle('makeProxy', (_e, path: string) => ask('proxy', path, { kind: 'proxy', label: `Proxy: ${path.split(/[\\/]/).pop()}` }).promise);

@@ -50,7 +50,7 @@ export interface JobProgress {
 
 export interface WorkerRequest {
   id: string;
-  type: 'probe' | 'assets' | 'export' | 'proxy' | 'cancel' | 'frame' | 'speechAudio' | 'stabilize' | 'reframe' | 'envelope';
+  type: 'probe' | 'assets' | 'export' | 'proxy' | 'cancel' | 'frame' | 'speechAudio' | 'stabilize' | 'reframe' | 'envelope' | 'loudness';
   payload: unknown;
 }
 
@@ -86,6 +86,8 @@ export interface KurguApi {
   makeProxy(path: string): Promise<string>;
   /** Warp Stabilizer: analyse + render the stabilised intermediate (cached by key); resolves to its path */
   stabilize(req: StabilizeRequest): Promise<string>;
+  /** EBU R128 loudness of a source range: integrated LUFS, loudness range, true peak */
+  measureLoudness(req: { path: string; range: [number, number]; label: string }): Promise<{ I: number; LRA: number; TP: number }>;
   /** loudness envelope (rate values per second, first maxSec seconds) for audio sync */
   audioEnvelope(req: { path: string; rate: number; maxSec: number; label: string }): Promise<number[]>;
   /** Auto Reframe: subject position samples for a source range */

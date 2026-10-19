@@ -429,3 +429,9 @@ select.mini { background: var(--bg-2); border: 1px solid var(--line); border-rad
 .sec-row { display: grid; grid-template-columns: 96px 1fr 42px; gap: 6px; align-items: center; padding: 1px 0; }
 .sec-row span { color: var(--text-2); } .sec-row b { font: 11px var(--mono); text-align: right; color: #6cc4ff; }
 .sec-label { margin: 6px 0 2px; color: var(--text-3); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+.lufs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.lufs-cell { display: grid; gap: 2px; } .lufs-cell span { color: var(--text-3); font-size: 10px; } .lufs-cell b { font: 600 16px var(--mono); }
+.lufs-bar { position: relative; height: 5px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: visible; }
+.lufs-bar > div { height: 100%; background: linear-gradient(90deg, #2fbf71, #d8c94a 80%, #ff4a3d); border-radius: 3px; }
+.lufs-bar i { position: absolute; top: -3px; width: 2px; height: 11px; background: #fff; }
+.lufs-hint { margin-top: 6px; color: var(--text-2); font-size: 11px; } .lufs-hint.ok { color: #7fe3a5; }

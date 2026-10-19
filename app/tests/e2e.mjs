@@ -673,11 +673,20 @@ await page.click('.modes button:has-text("Kurgu")').catch(() => {});
     for (const m of Object.values(st.project.media)) if (!st.assets[m.path]?.peaks) await k.loadAssets(m);
     return { a2: A2, a1: A1 };
   });
-  await page.selectOption('.mix-card select', duck.a2);
+  await page.selectOption('.mix-card:has-text("otomatik kıs") select', duck.a2);
   await page.click('.mix-card button:has-text("Uygula")');
   await page.waitForTimeout(200);
   const kf = await page.evaluate((a2) => Object.values(window.__kurgu.store.committedSeq().clips).filter((c) => c.trackId === a2).map((c) => c.volumeDb.keyframes.length), duck.a2);
   check('Otomatik ses kısma müziğe anahtar kare yazdı', kf.some((n) => n >= 3), JSON.stringify(kf));
+  // loudness: measure the sequence, match a clip to −14 LUFS
+  await page.click('.mix-card button:has-text("Sekansı ölç")');
+  await page.waitForSelector('.lufs-hint:has-text("Sekans:")', { timeout: 120000 });
+  const lufs = await page.$eval('.lufs-hint:has-text("Sekans:")', (x) => x.textContent);
+  const music = await page.evaluate(() => { const k = window.__kurgu.store; const s = k.committedSeq(); const a2 = s.tracks.find((t) => t.name === 'A2').id; const c = Object.values(s.clips).find((x) => x.trackId === a2); k.selectClips([c.id], false); return { id: c.id, v: c.volumeDb.value }; });
+  await page.click('.mix-card button:has-text("Seçili klipleri hedefe eşle")');
+  await page.waitForFunction((m) => window.__kurgu.store.committedSeq().clips[m.id].volumeDb.value !== m.v, music, { timeout: 60000 });
+  const matched = await page.evaluate((id) => window.__kurgu.store.committedSeq().clips[id].volumeDb.value, music.id);
+  check('LUFS: sekans ölçüldü ve klip hedefe eşlendi', /-?\d+\.\d LUFS/.test(lufs), `${lufs} · müzik ${music.v} → ${matched} dB`);
   await shot(page, '18-ses-mikseri');
   // voice-over from the (fake) microphone
   const before = await page.evaluate(() => Object.keys(window.__kurgu.store.committedSeq().clips).length);

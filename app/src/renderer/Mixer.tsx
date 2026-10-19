@@ -2,7 +2,8 @@
 // music under speech, and voice-over recording from the microphone.
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_DUCK, duckKeyframes, speechRegions, trackLevels } from '../core/ducking';
-import { Track, clipEnd, framesToTimecode } from '../core/model';
+import { Track, clipEnd, clipSrcOut, framesToTimecode } from '../core/model';
+import { ExportSettings, defaultExport } from '../core/render-graph';
 import * as ops from '../core/ops';
 import { player } from './player';
 import { activeSeq, cancelPreview, commitPreview, committedSeq, edit, importPaths, previewEdit, toast, useStore } from './store';
@@ -232,6 +233,98 @@ function VoiceOverCard() {
   );
 }
 
+// ------------------------------------------------------------------ loudness (LUFS)
+
+const TARGETS = [
+  { v: -14, name: '−14 LUFS · YouTube, Spotify, Instagram, TikTok' },
+  { v: -16, name: '−16 LUFS · Podcast, Apple' },
+  { v: -23, name: '−23 LUFS · TV yayını (EBU R128)' },
+];
+
+function LoudnessCard() {
+  const [vals, setVals] = useState({ momentary: -Infinity, shortTerm: -Infinity, integrated: -Infinity });
+  const [target, setTarget] = useState(-14);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [measured, setMeasured] = useState<{ I: number; LRA: number; TP: number } | null>(null);
+  useEffect(() => {
+    let raf = 0, last = 0;
+    const tick = (t: number) => { if (t - last > 120) { setVals(player.loudness()); last = t; } raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const f = (x: number) => (Number.isFinite(x) ? x.toFixed(1) : '—');
+  const bar = (x: number) => (Number.isFinite(x) ? Math.max(0, Math.min(100, ((x + 40) / 40) * 100)) : 0);
+  const near = Number.isFinite(vals.shortTerm) ? Math.abs(vals.shortTerm - target) : 99;
+
+  const matchClips = async () => {
+    const st = useStore.getState();
+    const seq = committedSeq(st);
+    const clips = st.selection.map((id) => seq.clips[id]).filter((c) => c && c.stream === 'audio');
+    if (!clips.length) { toast('Ses eşlemek için timeline\'da ses klipleri seçin', 'error'); return; }
+    setBusy('Ölçülüyor…');
+    try {
+      const gains: Record<string, number> = {};
+      for (const c of clips) {
+        const m = st.project.media[c.mediaId];
+        if (!m) continue;
+        const a = Math.min(c.srcIn, clipSrcOut(c, seq.fps)), b = Math.max(c.srcIn, clipSrcOut(c, seq.fps));
+        const r = await window.kurgu.measureLoudness({ path: m.path, range: [a, b], label: `Ses yüksekliği: ${c.name}` });
+        if (Number.isFinite(r.I)) gains[c.id] = target - r.I;
+      }
+      edit(`Ses yüksekliğini eşle (${target} LUFS)`, (s) => {
+        for (const [id, g] of Object.entries(gains)) {
+          const c = s.clips[id];
+          if (!c) continue;
+          const d = Math.max(-40, Math.min(24, g)) - 0; // clip gain change
+          c.volumeDb.value = Math.round((c.volumeDb.value + d) * 10) / 10;
+          for (const k of c.volumeDb.keyframes) k.value = Math.round((k.value + d) * 10) / 10;
+        }
+      });
+      toast(`${Object.keys(gains).length} klip ${target} LUFS'a eşlendi`, 'success');
+    } catch (e) { toast(`Ölçülemedi: ${(e as Error).message.split('\n')[0]}`, 'error'); }
+    setBusy(null);
+  };
+
+  const measureSequence = async () => {
+    const st = useStore.getState();
+    const seq = committedSeq(st);
+    setBusy('Sekans karıştırılıyor…');
+    try {
+      const tmp = (await window.kurgu.writeTemp(`loudness-${Date.now()}.wav`, '')).replace(/\.wav$/, '') + '.wav';
+      const job = await window.kurgu.exportSequence({ project: st.project, sequenceId: seq.id, settings: { ...defaultExport(tmp), container: 'wav', videoCodec: 'none', audioCodec: 'pcm' } as ExportSettings, useProxies: false });
+      await new Promise<void>((res, rej) => {
+        const t = setInterval(() => { const j = useStore.getState().jobs[job.jobId]; if (j?.done) { clearInterval(t); if (j.error) rej(new Error(j.error)); else res(); } }, 250);
+      });
+      setBusy('Ölçülüyor…');
+      const r = await window.kurgu.measureLoudness({ path: tmp, range: [0, 1e6], label: 'Sekans ses yüksekliği' });
+      setMeasured(r);
+    } catch (e) { toast(`Ölçülemedi: ${(e as Error).message.split('\n')[0]}`, 'error'); }
+    setBusy(null);
+  };
+
+  return (
+    <div className="mix-card">
+      <div className="mix-card-h">Ses yüksekliği (LUFS)</div>
+      <div className="lufs-grid">
+        {([['Anlık', vals.momentary], ['Kısa (3 sn)', vals.shortTerm], ['Entegre', vals.integrated]] as const).map(([n, v]) => (
+          <div key={n} className="lufs-cell"><span>{n}</span><b>{f(v)}</b><div className="lufs-bar"><div style={{ width: `${bar(v)}%` }} /><i style={{ left: `${bar(target)}%` }} /></div></div>
+        ))}
+      </div>
+      <div className="mix-grid" style={{ marginTop: 6 }}>
+        <span>Hedef</span>
+        <select className="mini" value={target} onChange={(e) => setTarget(Number(e.target.value))}>{TARGETS.map((t) => <option key={t.v} value={t.v}>{t.name}</option>)}</select>
+      </div>
+      <div className={`lufs-hint ${near < 1.5 ? 'ok' : ''}`}>{Number.isFinite(vals.shortTerm) ? (near < 1.5 ? 'Hedefte ✓' : vals.shortTerm < target ? `${(target - vals.shortTerm).toFixed(1)} LU düşük` : `${(vals.shortTerm - target).toFixed(1)} LU yüksek`) : 'Ölçmek için oynatın'}</div>
+      {measured && <div className="lufs-hint">Sekans: <b>{f(measured.I)} LUFS</b> · aralık {f(measured.LRA)} LU · tepe {f(measured.TP)} dBTP {Number.isFinite(measured.TP) && measured.TP > -1 ? '⚠ −1 dBTP üstü' : ''}</div>}
+      <div className="mix-actions">
+        <button className="btn small primary" disabled={!!busy} onClick={() => void matchClips()}>Seçili klipleri hedefe eşle</button>
+        <button className="btn small" disabled={!!busy} onClick={() => void measureSequence()}>{busy ?? 'Sekansı ölç'}</button>
+      </div>
+      <div className="mix-hint">Dışa aktarımda "Ses yüksekliğini normalleştir" ile çıktı da hedefe ayarlanır.</div>
+    </div>
+  );
+}
+
 export function MixerPanel() {
   const seq = useStore((s) => activeSeq(s));
   const auds = seq.tracks.filter((t) => t.kind === 'audio');
@@ -247,6 +340,7 @@ export function MixerPanel() {
           <div className="mix-db static">Ana çıkış</div>
         </div>
       </div>
+      <LoudnessCard />
       <DuckCard />
       <VoiceOverCard />
     </div>

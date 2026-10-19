@@ -58,6 +58,16 @@ class Player {
       this.analyser.fftSize = 1024;
       this.master.connect(this.analyser);
       this.analyser.connect(this.audio.destination);
+      // EBU R128 meter: K-weighting per channel, measured off the master bus
+      const split = this.audio.createChannelSplitter(2);
+      this.master.connect(split);
+      for (let ch = 0; ch < 2; ch++) {
+        const shelf = this.audio.createBiquadFilter(); shelf.type = 'highshelf'; shelf.frequency.value = 1681.97; shelf.gain.value = 4.0;
+        const hp = this.audio.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 38.13; hp.Q.value = 0.5;
+        const an = this.audio.createAnalyser(); an.fftSize = 32768;
+        split.connect(shelf, ch); shelf.connect(hp); hp.connect(an);
+        this.kAnalysers.push(an);
+      }
     } catch { this.audio = null; }
   }
 
@@ -499,6 +509,41 @@ class Player {
   setMonitorMuted(muted: boolean) {
     this.ensureAudio();
     if (this.master) this.master.gain.value = muted ? 0 : 1;
+  }
+
+  private kAnalysers: AnalyserNode[] = [];
+  private lufsBlocks: { t: number; ms: number }[] = [];
+  private lufsLast = 0;
+  private lufsBuf = new Float32Array(32768);
+
+  /** EBU R128 loudness of what is playing: momentary (400 ms), short-term (3 s), integrated (gated) */
+  loudness(): { momentary: number; shortTerm: number; integrated: number } {
+    const nan = { momentary: -Infinity, shortTerm: -Infinity, integrated: -Infinity };
+    if (!this.audio || !this.kAnalysers.length) return nan;
+    const st = useStore.getState();
+    if (!st.playing) { this.lufsBlocks = []; return nan; }
+    const now = performance.now();
+    const win = Math.round(this.audio.sampleRate * 0.4);
+    let ms = 0;
+    for (const an of this.kAnalysers) {
+      an.getFloatTimeDomainData(this.lufsBuf);
+      let s = 0;
+      for (let i = this.lufsBuf.length - win; i < this.lufsBuf.length; i++) s += this.lufsBuf[i] * this.lufsBuf[i];
+      ms += s / win;
+    }
+    const L = (x: number) => (x > 0 ? -0.691 + 10 * Math.log10(x) : -Infinity);
+    if (now - this.lufsLast >= 100) { this.lufsBlocks.push({ t: now, ms }); this.lufsLast = now; if (this.lufsBlocks.length > 36000) this.lufsBlocks.shift(); }
+    const recent = this.lufsBlocks.filter((b) => now - b.t <= 3000);
+    const short = recent.length ? recent.reduce((a, b) => a + b.ms, 0) / recent.length : 0;
+    // gating: absolute −70 LUFS, then relative −10 LU
+    const abs = this.lufsBlocks.filter((b) => L(b.ms) > -70);
+    let integrated = -Infinity;
+    if (abs.length) {
+      const g1 = abs.reduce((a, b) => a + b.ms, 0) / abs.length;
+      const rel = abs.filter((b) => L(b.ms) > L(g1) - 10);
+      if (rel.length) integrated = L(rel.reduce((a, b) => a + b.ms, 0) / rel.length);
+    }
+    return { momentary: L(ms), shortTerm: L(short), integrated };
   }
 
   /** level meter values, 0..1 per channel-ish */

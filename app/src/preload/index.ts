@@ -38,6 +38,7 @@ const api: KurguApi = {
   stabilize: (req) => ipcRenderer.invoke('stabilize', req),
   reframeAnalyze: (req) => ipcRenderer.invoke('reframeAnalyze', req),
   audioEnvelope: (req) => ipcRenderer.invoke('audioEnvelope', req),
+  measureLoudness: (req) => ipcRenderer.invoke('measureLoudness', req),
   micAccess: () => ipcRenderer.invoke('micAccess'),
   saveText: (name, ext, content) => ipcRenderer.invoke('saveText', name, ext, content),
   openText: (exts) => ipcRenderer.invoke('openText', exts),

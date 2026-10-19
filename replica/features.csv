@@ -229,7 +229,7 @@ Track automation read / latch / touch / write,audio,should,yes,no,
 Submixes and sends,audio,should,yes,no,
 Audio Clip Mixer,audio,could,yes,no,S42
 Audio meters with clip indicator,audio,must,yes,yes,S44
-LUFS loudness meter,audio,must,yes,no,
+LUFS loudness meter,audio,must,yes,yes,
 Audio type tagging (dialogue / music / SFX / ambience),audio,must,yes,no,S43
 Dialogue repair: reduce noise / rumble / hum / reverb / de-ess,audio,must,yes,yes,
 Auto ducking of music under dialogue,audio,must,yes,yes,
