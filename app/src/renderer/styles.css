@@ -417,3 +417,15 @@ select.mini { background: var(--bg-2); border: 1px solid var(--line); border-rad
 .mc-label { position: absolute; left: 4px; top: 3px; font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px #000; background: rgba(0,0,0,0.45); padding: 1px 5px; border-radius: 3px; }
 .mc-cell.on .mc-label { background: #ff2d2d; }
 .mc-empty { color: var(--text-3); display: grid; place-items: center; height: 100%; font-size: 11px; }
+
+/* ---- curves & secondary */
+.curve-tabs { display: flex; gap: 4px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; font-size: 11px; }
+.curve-ch { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
+.curve-ch.ch-master { background: #e8e8e8; } .curve-ch.ch-r { background: #ff5a5a; } .curve-ch.ch-g { background: #5ad66a; } .curve-ch.ch-b { background: #5aa0ff; }
+.curve-ch.on { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+.curve-box { width: 220px; height: 220px; max-width: 100%; border: 1px solid var(--line); border-radius: 4px; cursor: crosshair; display: block; touch-action: none; }
+.sec-hue { position: relative; height: 12px; border-radius: 3px; margin: 4px 0 8px; }
+.sec-band { position: absolute; top: -3px; bottom: -3px; border: 2px solid #fff; border-radius: 3px; box-shadow: 0 0 0 1px #000; }
+.sec-row { display: grid; grid-template-columns: 96px 1fr 42px; gap: 6px; align-items: center; padding: 1px 0; }
+.sec-row span { color: var(--text-2); } .sec-row b { font: 11px var(--mono); text-align: right; color: #6cc4ff; }
+.sec-label { margin: 6px 0 2px; color: var(--text-3); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }

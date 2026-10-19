@@ -3,6 +3,7 @@ import { ColorGrade, LOOKS, RGB, autoGrade, isNeutral, neutralGrade } from '../c
 import { Clip } from '../core/model';
 import { I } from './icons';
 import { player } from './player';
+import { CurvesEditor, SecondaryEditor } from './Curves';
 import { activeSeq, cancelPreview, commitPreview, edit, previewEdit, toast, useStore } from './store';
 
 let gradeClipboard: ColorGrade | null = null;
@@ -86,6 +87,12 @@ export function ColorPanel() {
               onLive={(v) => liveSet(ids, (x) => { x[k] = v; })} onCommit={() => commit('Renk tekerleği')} />
           ))}
         </div>
+      </Section>
+      <Section title="Eğriler">
+        <CurvesEditor g={g} onLive={(fn) => liveSet(ids, fn)} onCommit={(l) => commit(l)} />
+      </Section>
+      <Section title="HSL ikincil (tek renge düzeltme)">
+        <SecondaryEditor g={g} onLive={(fn) => liveSet(ids, fn)} onCommit={(l) => commit(l)} />
       </Section>
       <Section title="Scope'lar"><Scopes /></Section>
     </div>

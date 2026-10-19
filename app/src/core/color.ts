@@ -27,6 +27,100 @@ export interface ColorGrade {
   lutPath: string | null; // user .cube
   lutIntensity: number; // 0..100
   vignette: number; // -100..100 (negative darkens edges)
+  /** RGB curves: control points (x, y in 0..1) incl. the ends; absent = straight */
+  curves?: { master?: [number, number][]; r?: [number, number][]; g?: [number, number][]; b?: [number, number][] };
+  /** hue curves: points (hue 0..1, amount -1..1), periodic */
+  hueVsSat?: [number, number][];
+  hueVsHue?: [number, number][];
+  hueVsLuma?: [number, number][];
+  /** HSL secondary: qualify a colour range and correct only it */
+  secondary?: Secondary;
+}
+
+export interface Secondary {
+  hue: number; // centre 0..360
+  hueWidth: number; // degrees either side
+  satMin: number; satMax: number; // 0..100
+  lumMin: number; lumMax: number; // 0..100
+  soft: number; // 0..100 edge softness
+  // corrections inside the key
+  hueShift: number; // degrees
+  saturation: number; // -100..100
+  brightness: number; // -100..100
+  temperature: number; // -100..100
+}
+
+export function defaultSecondary(): Secondary {
+  return { hue: 25, hueWidth: 25, satMin: 15, satMax: 100, lumMin: 10, lumMax: 95, soft: 40, hueShift: 0, saturation: 0, brightness: 0, temperature: 0 };
+}
+
+// ------------------------------------------------------------------ curves
+
+/** monotone cubic (Fritsch–Carlson) through sorted points: no overshoot, like pro curve tools */
+export function curveFn(pts: [number, number][] | undefined): ((x: number) => number) | null {
+  if (!pts || pts.length < 2) return null;
+  const p = [...pts].sort((a, b) => a[0] - b[0]);
+  if (p.length === 2 && p[0][0] === 0 && p[0][1] === 0 && p[1][0] === 1 && p[1][1] === 1) return null;
+  const n = p.length;
+  const d: number[] = [], m: number[] = new Array(n).fill(0);
+  for (let i = 0; i < n - 1; i++) d.push((p[i + 1][1] - p[i][1]) / Math.max(1e-6, p[i + 1][0] - p[i][0]));
+  m[0] = d[0]; m[n - 1] = d[n - 2];
+  for (let i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2;
+  for (let i = 0; i < n - 1; i++) {
+    if (d[i] === 0) { m[i] = 0; m[i + 1] = 0; continue; }
+    const a = m[i] / d[i], b = m[i + 1] / d[i], h = a * a + b * b;
+    if (h > 9) { const t = 3 / Math.sqrt(h); m[i] = t * a * d[i]; m[i + 1] = t * b * d[i]; }
+  }
+  return (x: number) => {
+    if (x <= p[0][0]) return p[0][1];
+    if (x >= p[n - 1][0]) return p[n - 1][1];
+    let i = 0;
+    while (i < n - 2 && x > p[i + 1][0]) i++;
+    const h = p[i + 1][0] - p[i][0], t = (x - p[i][0]) / h;
+    const t2 = t * t, t3 = t2 * t;
+    return (2 * t3 - 3 * t2 + 1) * p[i][1] + (t3 - 2 * t2 + t) * h * m[i] + (-2 * t3 + 3 * t2) * p[i + 1][1] + (t3 - t2) * h * m[i + 1];
+  };
+}
+
+/** periodic smooth curve over hue (0..1) through (hue, amount) points; 0 elsewhere when empty */
+export function hueCurveFn(pts: [number, number][] | undefined): ((h: number) => number) | null {
+  if (!pts || !pts.length || pts.every((q) => Math.abs(q[1]) < 1e-4)) return null;
+  const p = [...pts].sort((a, b) => a[0] - b[0]);
+  // wrap: copies one period left and right, then the same monotone-free Catmull-Rom
+  const ext = [...p.map(([x, y]) => [x - 1, y] as [number, number]), ...p, ...p.map(([x, y]) => [x + 1, y] as [number, number])];
+  return (h: number) => {
+    const x = ((h % 1) + 1) % 1;
+    let i = 0;
+    while (i < ext.length - 2 && ext[i + 1][0] < x) i++;
+    const p0 = ext[Math.max(0, i - 1)], p1 = ext[i], p2 = ext[i + 1], p3 = ext[Math.min(ext.length - 1, i + 2)];
+    const t = (x - p1[0]) / Math.max(1e-6, p2[0] - p1[0]);
+    const t2 = t * t, t3 = t2 * t;
+    return 0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3);
+  };
+}
+
+function rgb2hsl(r: number, g: number, b: number): [number, number, number] {
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+  if (mx === mn) return [0, 0, l];
+  const d = mx - mn, s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+  const h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h / 6, s, l];
+}
+function hsl2rgb(h: number, s: number, l: number): [number, number, number] {
+  if (s <= 0) return [l, l, l];
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  const f = (t: number) => { t = ((t % 1) + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 0.5 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
+  return [f(h + 1 / 3), f(h), f(h - 1 / 3)];
+}
+
+/** 0..1 key: how much a pixel belongs to the secondary's colour range */
+export function secondaryKey(sec: Secondary, r: number, g: number, b: number): number {
+  const [h, s, l] = rgb2hsl(clamp(r), clamp(g), clamp(b));
+  const soft = 0.02 + (sec.soft / 100) * 0.5;
+  let dh = Math.abs(h * 360 - sec.hue); dh = Math.min(dh, 360 - dh);
+  const kh = 1 - smooth(sec.hueWidth, sec.hueWidth * (1 + soft * 2) + 4, dh);
+  const band = (v: number, lo: number, hi: number) => smooth(lo - soft * 30, lo + 1e-3, v * 100) * (1 - smooth(hi - 1e-3, hi + soft * 30, v * 100));
+  return kh * band(s, sec.satMin, sec.satMax) * band(l, sec.lumMin, sec.lumMax);
 }
 
 const zero: RGB = { r: 0, g: 0, b: 0 };
@@ -120,6 +214,15 @@ export function gradePixel(
   gg = wheel(gg, g.lift.g, g.gamma.g, g.gain.g);
   b = wheel(b, g.lift.b, g.gamma.b, g.gain.b);
 
+  // RGB curves (master, then per channel)
+  if (g.curves) {
+    const cm = curveFn(g.curves.master), cr = curveFn(g.curves.r), cg = curveFn(g.curves.g), cb = curveFn(g.curves.b);
+    if (cm) { r = cm(clamp(r)); gg = cm(clamp(gg)); b = cm(clamp(b)); }
+    if (cr) r = cr(clamp(r));
+    if (cg) gg = cg(clamp(gg));
+    if (cb) b = cb(clamp(b));
+  }
+
   // saturation + vibrance
   const l1 = luma(r, gg, b);
   const mx = Math.max(r, gg, b), mn = Math.min(r, gg, b);
@@ -127,6 +230,28 @@ export function gradePixel(
   const vib = (g.vibrance / 100) * (1 - Math.min(1, sat * 1.6));
   const sK = (g.saturation / 100) * (1 + vib);
   r = l1 + (r - l1) * sK; gg = l1 + (gg - l1) * sK; b = l1 + (b - l1) * sK;
+
+  // hue curves (hue vs saturation / hue / luma)
+  const hs = hueCurveFn(g.hueVsSat), hh = hueCurveFn(g.hueVsHue), hl = hueCurveFn(g.hueVsLuma);
+  if (hs || hh || hl) {
+    const [h0, s0, L0] = rgb2hsl(clamp(r), clamp(gg), clamp(b));
+    const w = Math.min(1, s0 * 3); // grey stays grey
+    const h1 = h0 + (hh ? hh(h0) * 0.5 * w : 0);
+    const s1 = clamp(s0 * (1 + (hs ? hs(h0) * w : 0)));
+    const L1 = clamp(L0 + (hl ? hl(h0) * 0.25 * w : 0));
+    [r, gg, b] = hsl2rgb(h1, s1, L1);
+  }
+  // HSL secondary
+  if (g.secondary) {
+    const sec = g.secondary;
+    const k = secondaryKey(sec, r, gg, b);
+    if (k > 0.001) {
+      const [h0, s0, L0] = rgb2hsl(clamp(r), clamp(gg), clamp(b));
+      let [r2, g2, b2] = hsl2rgb(h0 + sec.hueShift / 360, clamp(s0 * (1 + sec.saturation / 100)), clamp(L0 + (sec.brightness / 100) * 0.3));
+      r2 *= 1 + 0.15 * (sec.temperature / 100); b2 *= 1 - 0.15 * (sec.temperature / 100);
+      r += (r2 - r) * k; gg += (g2 - gg) * k; b += (b2 - b) * k;
+    }
+  }
 
   // creative look
   if (g.look && LOOKS[g.look] && g.lookIntensity > 0) {

@@ -71,3 +71,48 @@ describe('colour grading', () => {
     expect(o[2] / o[0]).toBeLessThan(70 / 30); // the blue cast is reduced
   });
 });
+
+describe('curves and secondaries', () => {
+  it('curves are smooth, monotone and identity when straight', async () => {
+    const { curveFn } = await import('./color');
+    expect(curveFn([[0, 0], [1, 1]])).toBeNull();
+    const f = curveFn([[0, 0], [0.25, 0.15], [0.75, 0.9], [1, 1]])!; // S-curve
+    let prev = -1;
+    for (let x = 0; x <= 1.0001; x += 0.01) { const y = f(x); expect(y).toBeGreaterThanOrEqual(prev - 1e-9); prev = y; }
+    expect(f(0.25)).toBeCloseTo(0.15, 5);
+    expect(f(0.5)).toBeGreaterThan(0.45); expect(f(0.5)).toBeLessThan(0.6);
+  });
+  it('RGB and hue curves do what they say', () => {
+    const base = neutralGrade();
+    const lifted = gradePixel(0.3, 0.3, 0.3, { ...base, curves: { b: [[0, 0], [0.5, 0.7], [1, 1]] } });
+    expect(lifted[2]).toBeGreaterThan(0.38); expect(lifted[0]).toBeCloseTo(0.3, 3);
+    // hue vs sat: kill reds only
+    const g = { ...base, hueVsSat: [[0, -1], [0.17, 0], [0.5, 0], [0.83, 0]] as [number, number][] };
+    const red = gradePixel(0.8, 0.2, 0.2, g), blue = gradePixel(0.2, 0.3, 0.8, g);
+    expect(Math.max(...red) - Math.min(...red)).toBeLessThan(0.15);
+    expect(Math.max(...blue) - Math.min(...blue)).toBeGreaterThan(0.5);
+  });
+  it('HSL secondary changes only the qualified colour (e.g. make the sky bluer, leave skin alone)', async () => {
+    const { defaultSecondary } = await import('./color');
+    const sec = { ...defaultSecondary(), hue: 210, hueWidth: 25, saturation: 60, brightness: -20 };
+    const g = { ...neutralGrade(), secondary: sec };
+    const sky = [0.45, 0.6, 0.85], skin = [0.88, 0.67, 0.55];
+    const sky2 = gradePixel(sky[0], sky[1], sky[2], g), skin2 = gradePixel(skin[0], skin[1], skin[2], g);
+    expect(sky2[2] - sky2[0]).toBeGreaterThan(sky[2] - sky[0] + 0.05);
+    for (let c = 0; c < 3; c++) expect(skin2[c]).toBeCloseTo(skin[c], 2);
+  });
+  it('export LUT matches the preview for curves + secondary', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kurgu-color2-'));
+    const g = { ...neutralGrade(), curves: { master: [[0, 0.05], [0.5, 0.45], [1, 0.95]] as [number, number][] }, hueVsSat: [[0.0, 0.5], [0.33, -0.5], [0.66, 0]] as [number, number][], secondary: { hue: 30, hueWidth: 20, satMin: 20, satMax: 100, lumMin: 10, lumMax: 95, soft: 30, hueShift: 10, saturation: 30, brightness: 5, temperature: 10 } };
+    const cube = join(dir, 'g.cube');
+    writeFileSync(cube, toCube(bakeLut(g, 33)));
+    for (const [r, gg, b] of [[200, 120, 60], [40, 80, 160], [128, 128, 128], [220, 170, 140]]) {
+      const hex = ((r << 16) | (gg << 8) | b).toString(16).padStart(6, '0');
+      const grab = (vf: string) => execFileSync(FFMPEG, ['-v', 'error', '-f', 'lavfi', '-i', `color=c=0x${hex}:s=16x16`, '-frames:v', '1', '-vf', vf, '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-']);
+      const src = grab('format=rgb24');
+      const out = grab(`format=rgb24,lut3d=file='${cube}':interp=tetrahedral`);
+      const want = gradePixel(src[0] / 255, src[1] / 255, src[2] / 255, g).map((x) => Math.round(x * 255));
+      for (let c = 0; c < 3; c++) expect(Math.abs(out[c] - want[c])).toBeLessThanOrEqual(5);
+    }
+  });
+});

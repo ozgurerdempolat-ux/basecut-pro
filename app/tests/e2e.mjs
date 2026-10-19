@@ -839,6 +839,24 @@ if (existsSync(outFile)) {
   check('İç içe sekans çift tıkla açılıyor', opened.startsWith('İç içe sekans'), opened);
 }
 
+// ---- colour curves + HSL secondary
+{
+  await page.evaluate(() => { const k = window.__kurgu.store; const st = k.useStore.getState(); const main = Object.values(st.project.sequences).find((s) => s.name === 'Sekans 01'); k.editProject('aç', (p) => { p.activeSequenceId = main.id; }); const s = k.committedSeq(); const c = Object.values(s.clips).find((x) => x.stream === 'video' && st.project.media[x.mediaId]?.kind === 'video' && !x.mc && !x.nest); k.selectClips([c.id], false); k.setPlayhead(c.start + 5); k.useStore.setState({ leftTab: 'color', mode: 'edit' }); });
+  await page.waitForSelector('.curve-box');
+  await (await page.$('.curve-box')).scrollIntoViewIfNeeded();
+  const box = await (await page.$('.curve-box')).boundingBox();
+  await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.7); await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.5, { steps: 4 }); await page.mouse.up();
+  const curves = await page.evaluate(() => { const s = window.__kurgu.store.committedSeq(); const id = window.__kurgu.store.useStore.getState().selection[0]; return s.clips[id].color?.curves?.master; });
+  check('Renk eğrisi noktası eklendi ve sürüklendi', !!curves && curves.length === 3 && curves[1][1] > 0.4, JSON.stringify(curves));
+  await page.click('.btn:has-text("Damlalık")');
+  const vb = await (await page.$('.viewer canvas')).boundingBox();
+  await page.mouse.click(vb.x + vb.width * 0.5, vb.y + vb.height * 0.5);
+  const sec = await page.evaluate(() => { const s = window.__kurgu.store.committedSeq(); const id = window.__kurgu.store.useStore.getState().selection[0]; return s.clips[id].color?.secondary; });
+  check('HSL ikincil damlalıkla renk seçti', !!sec && Number.isFinite(sec.hue), JSON.stringify(sec));
+  await shot(page, '29-egriler-ikincil');
+}
+
 // ---- crash isolation: kill the worker mid-job and keep editing
 const pid = await app.evaluate(async ({ app }) => app.getAppMetrics().find((m) => m.type === 'Utility' && /Kurgu Media Worker|NodeService/.test(m.serviceName ?? m.name ?? ''))?.pid ?? null);
 if (pid) {
