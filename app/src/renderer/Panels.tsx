@@ -6,6 +6,8 @@ import { CaptionsPanel } from './Captions';
 import { ColorPanel } from './ColorPanel';
 import { AudioEffectStack, EffectStack, EffectsLibrary, TransitionControls } from './Effects';
 import { MixerPanel } from './Mixer';
+import { GraphicsEditor, newGraphicFromTemplate, userTemplates } from './GraphicsEditor';
+import { GRAPHIC_TEMPLATES } from '../core/graphic';
 import { TranscriptPanel } from './Transcript';
 import { MarkersPanel } from './Markers';
 import { MaskControls } from './MaskUI';
@@ -88,9 +90,10 @@ export function ProjectPanel() {
             <button className={`icon-btn ${view === 'grid' ? 'on' : ''}`} title="Simge görünümü" onClick={() => setView('grid')}>{I.grid}</button>
             <button className={`icon-btn ${view === 'list' ? 'on' : ''}`} title="Liste görünümü" onClick={() => setView('list')}>{I.list}</button>
             {view === 'grid' && <input type="range" min={80} max={240} value={thumb} onChange={(e) => setThumb(Number(e.target.value))} style={{ width: 60 }} title="Küçük resim boyutu" />}
-            <select className="mini" value="" title="Yeni başlık" onChange={(e) => { if (e.target.value) void createTitle(e.target.value); e.target.value = ''; }}>
-              <option value="">+ Başlık</option>
-              {TITLE_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            <select className="mini" value="" title="Yeni grafik / başlık" onChange={(e) => { if (e.target.value) void newGraphicFromTemplate(e.target.value); e.target.value = ''; }}>
+              <option value="">+ Grafik</option>
+              {[...new Set(GRAPHIC_TEMPLATES.map((t) => t.group))].map((g) => <optgroup key={g} label={g}>{GRAPHIC_TEMPLATES.filter((t) => t.group === g).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</optgroup>)}
+              {userTemplates().length > 0 && <optgroup label="Benim şablonlarım">{userTemplates().map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</optgroup>}
             </select>
             <select className="mini" value="" title="Yeni öğe" onChange={(e) => { const v = e.target.value; e.target.value = ''; if (v === 'matte') { const c = window.prompt('Renk (ör. #ff6a3d)', '#ff6a3d'); const n = c ? parseInt(c.replace('#', ''), 16) : NaN; if (Number.isFinite(n)) void createSynthetic('matte', n); } else if (v) void createSynthetic(v as SyntheticKind); }}>
               <option value="">+ Yeni öğe</option>
@@ -202,7 +205,7 @@ export function EffectControls() {
   const media = useStore.getState().project.media[clip.mediaId];
   return (
     <div className="panel-body fx-panel">
-      {media?.title && <TitleEditor key={media.id + media.title.text} mediaId={media.id} data={media.title} />}
+      {media?.title && <GraphicsEditor clip={clip} media={media} />}
       <TransitionControls clip={clip} seq={seq} />
       <div style={{ padding: '4px 10px 8px', color: 'var(--text-2)' }}>
         <b style={{ color: 'var(--text)' }}>{clip.name}</b> · {framesToTimecode(clip.duration, seq.fps)} · Hız %{Math.round(clip.speed * 100)}
@@ -265,34 +268,6 @@ export function EffectControls() {
         <button className="btn small" onClick={() => edit('Efektleri sıfırla', (s) => { const c = s.clips[clip.id]; for (const p of Object.values(c.transform)) { p.keyframes = []; } c.transform.posX.value = 0; c.transform.posY.value = 0; c.transform.scale.value = 100; c.transform.rotation.value = 0; c.transform.opacity.value = 100; })}>{I.reset} Sıfırla</button>
       </div>
     </div>
-  );
-}
-
-function TitleEditor({ mediaId, data }: { mediaId: string; data: TitleData }) {
-  const [text, setText] = useState(data.text);
-  const set = (p: Partial<TitleData>) => void updateTitle(mediaId, p);
-  const row = (label: string, el: React.ReactNode) => (
-    <div style={{ display: 'grid', gridTemplateColumns: '84px 1fr', alignItems: 'center', gap: 6, padding: '3px 10px' }}><span className="lbl" style={{ color: 'var(--text-2)' }}>{label}</span>{el}</div>
-  );
-  return (
-    <Group title="Metin">
-      <div style={{ padding: '4px 10px' }}>
-        <textarea value={text} rows={Math.min(5, Math.max(2, text.split('\n').length))} onChange={(e) => setText(e.target.value)}
-          onBlur={() => text !== data.text && set({ text })} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) (e.target as HTMLTextAreaElement).blur(); }}
-          style={{ width: '100%', background: 'var(--bg-2)', border: '1px solid var(--line-2)', borderRadius: 6, padding: 6, color: 'var(--text)', font: '13px var(--font)', resize: 'vertical' }} />
-      </div>
-      {row('Yazı tipi', <select className="mini" value={data.font} onChange={(e) => set({ font: e.target.value })}>{TITLE_FONTS.map((f) => <option key={f} value={f}>{f}</option>)}</select>)}
-      {row('Kalınlık', <select className="mini" value={data.weight} onChange={(e) => set({ weight: Number(e.target.value) as TitleData['weight'] })}>{[400, 600, 700, 800, 900].map((w) => <option key={w} value={w}>{({ 400: 'Normal', 600: 'Yarı kalın', 700: 'Kalın', 800: 'Ekstra kalın', 900: 'Siyah' } as Record<number, string>)[w]}</option>)}</select>)}
-      {row('Boyut', <HotNumber value={data.size} step={0.05} unit="%" onCommit={(v) => set({ size: Math.max(0.5, Math.min(40, v)) })} />)}
-      {row('Renk', <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}><input type="color" value={data.color} onChange={(e) => set({ color: e.target.value })} />
-        <label className="check"><input type="checkbox" checked={data.uppercase} onChange={(e) => set({ uppercase: e.target.checked })} /> BÜYÜK</label></span>)}
-      {row('Hizalama', <span style={{ display: 'flex', gap: 2 }}>{(['left', 'center', 'right'] as const).map((a) => <button key={a} className={`btn small ${data.align === a ? 'primary' : ''}`} onClick={() => set({ align: a })}>{({ left: 'Sol', center: 'Orta', right: 'Sağ' })[a]}</button>)}</span>)}
-      {row('Konum X / Y', <span style={{ display: 'flex', gap: 6 }}><HotNumber value={data.x} step={0.2} unit="%" onCommit={(v) => set({ x: v })} /><HotNumber value={data.y} step={0.2} unit="%" onCommit={(v) => set({ y: v })} /></span>)}
-      {row('Kontur', <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}><input type="color" value={data.stroke} onChange={(e) => set({ stroke: e.target.value })} /><HotNumber value={data.strokeWidth} step={0.5} unit="%" onCommit={(v) => set({ strokeWidth: Math.max(0, Math.min(40, v)) })} /></span>)}
-      {row('Arka plan', <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}><label className="check"><input type="checkbox" checked={data.box} onChange={(e) => set({ box: e.target.checked })} /> Kutu</label>
-        {data.box && <><input type="color" value={data.boxColor} onChange={(e) => set({ boxColor: e.target.value })} /><HotNumber value={Math.round(data.boxOpacity * 100)} step={1} unit="%" onCommit={(v) => set({ boxOpacity: Math.max(0, Math.min(100, v)) / 100 })} /></>}</span>)}
-      {row('Gölge', <label className="check"><input type="checkbox" checked={data.shadow} onChange={(e) => set({ shadow: e.target.checked })} /> Yumuşak gölge</label>)}
-    </Group>
   );
 }
 

@@ -47,7 +47,7 @@ export function MaskControls({ clip }: { clip: Clip }) {
 // ------------------------------------------------------------------ program monitor overlay
 
 /** source-normalised point → sequence pixels for this clip at a local frame */
-function mapper(c: Clip, m: MediaItem, seq: Sequence, local: number) {
+export function mapper(c: Clip, m: MediaItem, seq: Sequence, local: number) {
   const iw = m.width || seq.width, ih = m.height || seq.height;
   const fit = Math.min(seq.width / iw, seq.height / ih);
   const sc = evalParam(c.transform.scale, local) / 100;

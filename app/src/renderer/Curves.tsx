@@ -1,6 +1,7 @@
 // Curve editors for the Color panel: RGB curves and hue curves, plus the HSL secondary.
 import { useEffect, useRef, useState } from 'react';
 import { ColorGrade, Secondary, curveFn, defaultSecondary, hueCurveFn } from '../core/color';
+import { useStore } from './store';
 
 type Pts = [number, number][];
 const IDENT: Pts = [[0, 0], [1, 1]];
@@ -100,6 +101,7 @@ export function SecondaryEditor({ g, onLive, onCommit }: { g: ColorGrade; onLive
   const sec = g.secondary;
   const [picking, setPicking] = useState(false);
   useEffect(() => {
+    useStore.setState({ monitorPick: picking });
     if (!picking) return;
     const h = (e: MouseEvent) => {
       const c = (e.target as HTMLElement).closest('.viewer')?.querySelector('canvas');

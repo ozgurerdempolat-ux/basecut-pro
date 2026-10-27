@@ -329,6 +329,57 @@ await page.click('.modes button:has-text("Kurgu")').catch(() => {});
   check('Başlık program monitöründe görünüyor', yellow > 300, `${yellow} sarı piksel`);
 }
 
+// ---- graphics: layered template, shapes, strokes/shadows, monitor handles
+{
+  await page.evaluate(() => window.__kurgu.store.setPlayhead(40));
+  const cid = await page.evaluate(() => window.__kurgu.titles.createTitle('lower'));
+  await page.waitForTimeout(400);
+  const g0 = await page.evaluate((id) => { const st = window.__kurgu.store.useStore.getState(); const c = window.__kurgu.store.committedSeq().clips[id]; const m = st.project.media[c.mediaId]; return { n: m.title.layers.length, mid: m.id, path: m.path }; }, cid);
+  check('Alt bant şablonu çok katmanlı grafik olarak eklendi', g0.n === 4, JSON.stringify(g0));
+  await page.evaluate((id) => { window.__kurgu.store.selectClips([id]); window.__kurgu.store.useStore.setState({ leftTab: 'fx' }); }, cid);
+  await page.waitForSelector('.graphics .g-layer');
+  await page.click('.graphics .g-add button[title="Elips"]');
+  await page.waitForFunction((m) => window.__kurgu.store.useStore.getState().project.media[m].title.layers.length === 5, g0.mid, { timeout: 10000 }).catch(() => {});
+  await page.click('.graphics .g-sub:has-text("Konturlar") button');
+  await page.click('.graphics .g-sub:has-text("Gölgeler") button');
+  await page.waitForTimeout(600);
+  const g1 = await page.evaluate((m) => { const mm = window.__kurgu.store.useStore.getState().project.media[m]; const l = mm.title.layers[mm.title.layers.length - 1]; return { n: mm.title.layers.length, kind: l.kind, strokes: l.strokes.length, shadows: l.shadows.length, path: mm.path }; }, g0.mid);
+  check('Grafiğe şekil + kontur + gölge eklendi, görsel yenilendi', g1.n === 5 && g1.kind === 'ellipse' && g1.strokes === 1 && g1.shadows === 1 && g1.path !== g0.path && existsSync(g1.path), JSON.stringify(g1));
+  // font picker lists bundled fonts
+  await page.click('.graphics .g-layer:has-text("Ad Soyad")');
+  await page.waitForSelector('.font-current');
+  await page.click('.font-current');
+  const fonts = await page.$$eval('.font-item', (x) => x.length);
+  await page.click('.font-item:has-text("Bebas Neue")').catch(() => {});
+  await page.waitForTimeout(500);
+  const font = await page.evaluate((m) => window.__kurgu.store.useStore.getState().project.media[m].title.layers.find((l) => l.text === 'Ad Soyad')?.font, g0.mid);
+  check('Yazı tipi seçici (gömülü yazı tipleri) çalışıyor', fonts >= 17 && font === 'Bebas Neue', `${fonts} yazı tipi · seçilen ${font}`);
+  await shot(page, '14b-grafik-editoru');
+  // drag the clip in the program monitor
+  const body = await page.$('.xf-overlay .xf-body');
+  const bb = await body.boundingBox();
+  const x0 = await page.evaluate((id) => window.__kurgu.store.committedSeq().clips[id].transform.posX.value, cid);
+  await page.mouse.move(bb.x + 8, bb.y + 8); await page.mouse.down(); await page.mouse.move(bb.x + 60, bb.y + 8, { steps: 4 }); await page.mouse.up();
+  const x1 = await page.evaluate((id) => window.__kurgu.store.committedSeq().clips[id].transform.posX.value, cid);
+  check('Program monitöründe klibi sürükleyerek taşıma', x1 - x0 > 50, `${x0} → ${x1}`);
+  // drag one layer
+  const lay = await page.$('.xf-overlay .xf-layer.on');
+  if (lay) {
+    const lb = await lay.boundingBox();
+    const lx0 = await page.evaluate((m) => window.__kurgu.store.useStore.getState().project.media[m].title.layers.find((l) => l.text === 'Ad Soyad').x, g0.mid);
+    await page.mouse.move(lb.x + lb.width / 2, lb.y + lb.height / 2); await page.mouse.down(); await page.mouse.move(lb.x + lb.width / 2 + 40, lb.y + lb.height / 2, { steps: 4 }); await page.mouse.up();
+    await page.waitForTimeout(700);
+    const lx1 = await page.evaluate((m) => window.__kurgu.store.useStore.getState().project.media[m].title.layers.find((l) => l.text === 'Ad Soyad').x, g0.mid);
+    check('Monitörde tek katmanı sürükleme', lx1 > lx0, `${lx0} → ${lx1}`);
+  } else check('Monitörde tek katmanı sürükleme', false, 'katman kutusu yok');
+  // in/out animation preset
+  await page.selectOption('.graphics .g-row:has-text("Giriş") select', 'up');
+  await page.click('.graphics .g-row:has-text("Süre") button:has-text("Uygula")');
+  const anim = await page.evaluate((id) => { const t = window.__kurgu.store.committedSeq().clips[id].transform; return { op: t.opacity.keyframes.length, y: t.posY.keyframes.length }; }, cid);
+  check('Metin giriş animasyonu anahtar kare olarak eklendi', anim.op >= 2 && anim.y >= 2, JSON.stringify(anim));
+  await page.evaluate((id) => { window.__kurgu.store.edit('grafik test sil', (s) => window.__kurgu.ops.deleteClips(s, [id])); window.__kurgu.store.useStore.setState({ selection: [] }); }, cid);
+}
+
 // ---- colour
 {
   const target = await page.evaluate(() => {

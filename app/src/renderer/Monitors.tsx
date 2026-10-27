@@ -5,6 +5,7 @@ import { I } from './icons';
 import { player } from './player';
 import { programMenu } from './menus';
 import { MaskOverlay } from './MaskUI';
+import { TransformOverlay } from './TransformOverlay';
 import { switchAngle } from './multicam';
 import { needsStabilize } from '../core/stabilize';
 import { stabStatus } from './stabilizer';
@@ -60,6 +61,7 @@ export function ProgramMonitor() {
           {safe && <SafeMargins w={seq.width} h={seq.height} />}
           {total === 0 && <div className="overlay-text">Proje panelinden klip sürükleyin veya içe aktarın</div>}
           <StabBanner />
+          <TransformOverlay canvas={canvasRef} />
           <MaskOverlay canvas={canvasRef} />
           <MulticamGrid />
         </div>

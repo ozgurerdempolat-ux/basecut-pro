@@ -32,7 +32,8 @@ export interface MediaItem {
   markIn: number | null;
   markOut: number | null;
   /** set for generated titles: the design the image was rendered from */
-  title?: import('./title').TitleData;
+  /** graphic design (Type tool / Graphics); legacy single-text titles still load */
+  title?: import('./title').TitleData | import('./graphic').GraphicData;
   /** generated items: adjustment layer (applies its effects to everything below) or colour matte */
   synthetic?: { type: 'adjustment' | 'matte' | 'multicam' | 'nest'; color?: number; seqId?: Id };
 }

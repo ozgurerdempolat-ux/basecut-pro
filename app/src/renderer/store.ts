@@ -28,6 +28,10 @@ export interface State {
   selectedMedia: Id[];
   /** a transition picked in the timeline (by the clip it belongs to) */
   selTransition: Id | null;
+  /** selected layer of the selected graphic clip */
+  selLayer: string | null;
+  /** an eyedropper is waiting for a click in the program monitor */
+  monitorPick: boolean;
   /** mask being edited on the program monitor */
   selMask: string | null;
   /** program monitor shows the multicam angle grid */
@@ -87,6 +91,8 @@ export const useStore = create<State>(() => ({
   selection: [],
   selectedMedia: [],
   selTransition: null,
+  selLayer: null,
+  monitorPick: false,
   selMask: null,
   multicamView: false,
   toolTip: null,

@@ -1,5 +1,5 @@
 feature,area,priority,original,clone,notes
-Home screen with recent projects,shell,must,yes,partial,S01
+Home screen with recent projects,shell,must,yes,yes,S01
 New project with name and location,project,must,yes,yes,S02
 Open / save / save as / save a copy,project,must,yes,yes,Ctrl+O/S/Shift+S/Alt+S
 Auto save every N minutes with N versions kept,project,must,yes,yes,F18
@@ -27,10 +27,10 @@ Project panel icon view with thumbnails,media,must,yes,yes,
 Freeform project view,media,could,yes,no,
 Hover scrub thumbnails,media,should,yes,no,Shift+H
 Search/filter in project panel,media,must,yes,yes,
-Label colors on items,media,should,yes,no,
+Label colors on items,media,should,yes,yes,
 Metadata panel (clip/file/XMP),media,could,yes,no,S09
 Offline media detection,media,must,yes,yes,red offline frame
-Link media / relink with auto-find in folder,media,must,yes,partial,S13 F17
+Link media / relink with auto-find in folder,media,must,yes,yes,S13 F17
 Replace footage,media,should,yes,no,
 Subclips,media,should,yes,no,
 Synthetic items: color matte / bars & tone / black video / transparent video / countdown,media,should,yes,yes,
@@ -49,7 +49,7 @@ Decode DNxHD/HR,engine,should,yes,no,
 Decode AV1 / VP9,engine,should,yes,no,
 Decode camera RAW (BRAW/R3D/ARRIRAW/CinemaDNG),engine,could,yes,skip,vendor SDK licensing per format
 Decode log + HDR (HLG/PQ) footage,engine,should,yes,no,
-Hardware-accelerated decode (NVDEC/VideoToolbox/QSV/AMF),engine,must,yes,partial,
+Hardware-accelerated decode (NVDEC/VideoToolbox/QSV/AMF),engine,must,yes,yes,
 Real-time multi-track GPU playback,engine,must,yes,partial,hard part #1
 Playback resolution full / 1/2 / 1/4 / 1/8,engine,must,yes,yes,Ctrl+0/2/4/8
 High-quality playback toggle,engine,could,yes,no,
@@ -67,7 +67,7 @@ Play in to out / play around,monitor,should,yes,no,
 Timecode display and entry (DF/NDF/frames),monitor,must,yes,yes,
 Zoom / fit in monitor,monitor,must,yes,yes,
 Safe margins and guides/rulers overlay,monitor,should,yes,no,
-Transform handles directly in Program Monitor,monitor,must,yes,no,
+Transform handles directly in Program Monitor,monitor,must,yes,yes,
 Comparison view (side-by-side / split / vertical),monitor,should,yes,no,
 Drag video-only / audio-only from Source,monitor,should,yes,no,
 Button editor (customize transport),monitor,could,yes,no,
@@ -93,7 +93,7 @@ Snapping toggle,timeline,must,yes,yes,S
 Zoom timeline / zoom to sequence / scroll bar,timeline,must,yes,yes,
 Track height expand / collapse,timeline,must,yes,yes,
 Video thumbnails and audio waveforms on clips,timeline,must,yes,yes,
-Clip labels and renaming in timeline,timeline,should,yes,no,
+Clip labels and renaming in timeline,timeline,should,yes,yes,
 Enable / disable clip,timeline,must,yes,yes,
 Group / ungroup clips,timeline,should,yes,no,Ctrl+G
 Nudge / slide / slip clips by 1 and 5 frames,timeline,should,yes,yes,Alt+arrows
@@ -116,9 +116,9 @@ Razor tool (single / all tracks),tools,must,yes,yes,C
 Slip tool,tools,must,yes,yes,Y
 Slide tool,tools,must,yes,yes,U
 Pen tool (keyframes and shapes),tools,must,yes,no,P
-Rectangle / ellipse / polygon shape tools,tools,should,yes,no,
-Hand tool,tools,must,yes,no,H
-Zoom tool,tools,must,yes,no,Z
+Rectangle / ellipse / polygon shape tools,tools,should,yes,yes,
+Hand tool,tools,must,yes,yes,H
+Zoom tool,tools,must,yes,yes,Z
 Type tool and vertical type tool,tools,must,yes,yes,T
 Trim mode with trim monitor,trim,should,yes,no,S19
 Dynamic trimming with J-K-L,trim,could,yes,no,
@@ -168,20 +168,20 @@ Morph cut (jump cut smoothing),transitions,should,yes,no,
 Default transition with Ctrl+D,transitions,must,yes,yes,
 Transition duration / alignment / reverse / border,transitions,must,yes,yes,
 Audio transitions: constant power / constant gain / exponential fade,transitions,must,yes,yes,
-Text: type in Program Monitor,graphics,must,yes,partial,F07
-Text styling: font / size / weight / tracking / kerning / leading / alignment,graphics,must,yes,partial,
-Fill / multiple strokes / background box / multiple shadows,graphics,must,yes,partial,
-Text styles save / apply / sync,graphics,should,yes,no,
-Shapes in graphics layers,graphics,must,yes,no,
+Text: type in Program Monitor,graphics,must,yes,yes,F07
+Text styling: font / size / weight / tracking / kerning / leading / alignment,graphics,must,yes,yes,
+Fill / multiple strokes / background box / multiple shadows,graphics,must,yes,yes,
+Text styles save / apply / sync,graphics,should,yes,yes,
+Shapes in graphics layers,graphics,must,yes,yes,
 Images inside graphics layers,graphics,should,yes,no,
-Align and distribute layers,graphics,should,yes,no,
+Align and distribute layers,graphics,should,yes,yes,
 Responsive design: pin to video frame / other layer,graphics,could,yes,no,
 Responsive design: preserve intro/outro timing,graphics,could,yes,no,
 Properties panel (context-sensitive quick controls),graphics,must,yes,no,S37
-Graphics templates panel with own template format,graphics,should,yes,no,S38 (ours not .mogrt)
+Graphics templates panel with own template format,graphics,should,yes,yes,S38 (ours not .mogrt)
 Import .mogrt templates,graphics,could,yes,skip,proprietary format
-Text panel: Graphics tab layer list,graphics,should,yes,no,
-Font browser with system fonts and favorites,graphics,must,yes,no,
+Text panel: Graphics tab layer list,graphics,should,yes,yes,
+Font browser with system fonts and favorites,graphics,must,yes,yes,
 Speech-to-text transcription (multi-language incl. Turkish),ai,must,yes,yes,F05
 Speaker detection and labels,ai,should,yes,no,
 Text-based editing: delete / extract / insert from transcript,ai,must,yes,yes,
@@ -235,7 +235,7 @@ Dialogue repair: reduce noise / rumble / hum / reverb / de-ess,audio,must,yes,ye
 Auto ducking of music under dialogue,audio,must,yes,yes,
 Remix music to target duration,audio,should,yes,no,
 Audio effects library: EQ (parametric / graphic) / compressor / limiter / dynamics / delay / reverb / pitch shifter / DeNoise / DeReverb / channel tools,audio,must,yes,yes,
-Audio keyframes via rubber band and pen,audio,must,yes,no,
+Audio keyframes via rubber band and pen,audio,must,yes,yes,
 Voice-over recording to track,audio,should,yes,yes,S46
 Audio hardware input/output selection,audio,must,yes,no,
 Scrub audio,audio,should,yes,no,
@@ -267,11 +267,11 @@ Docking panel system with tabs / floating / maximize,ui,must,yes,partial,
 Predefined workspaces (Editing / Color / Audio / Effects / Graphics / Captions / Assembly),ui,must,yes,no,S05
 Save / reset custom workspaces,ui,must,yes,no,
 Dark UI with brightness slider,ui,should,yes,no,
-UI scaling for HiDPI,ui,must,yes,no,
+UI scaling for HiDPI,ui,must,yes,yes,
 Keyboard shortcut editor with visual keyboard and conflict detection,ui,must,yes,yes,S55
 Premiere-style keymap preset,ui,must,no,yes,lowers switching cost; functional mapping only
 FCP7 / Avid keymap presets,ui,could,yes,no,
-Preferences (~20 tabs),ui,must,yes,no,S54
+Preferences (~20 tabs),ui,must,yes,partial,S54
 Context menus on every object,ui,must,yes,yes,
 Localization: Turkish UI,ui,must,no,yes,our market; Premiere TR exists but partial
 Localization: English UI,ui,must,yes,no,
@@ -297,7 +297,7 @@ GPU fallback to software renderer,platform,must,yes,partial,
 Crash isolation: decode/render in separate process so the editor never goes down,stability,must,no,yes,X1 fixes.md
 Instant edit journal: every change on disk immediately; reopen exactly where you were,stability,must,no,yes,X1 fixes.md
 Automatic background proxies for heavy footage,performance,must,no,yes,X2 fixes.md
-Adaptive playback: drop resolution instead of dropping frames,performance,should,no,partial,X2 fixes.md
+Adaptive playback: drop resolution instead of dropping frames,performance,should,no,yes,X2 fixes.md
 Preflight check before export with one-click fixes,export,should,no,yes,X3 fixes.md
 Simple mode (guided one-screen editor) alongside Pro mode,ui,should,no,partial,X4 fixes.md
 Stable layouts: updates never force UI changes; roll back an update,platform,should,no,no,X6 fixes.md
