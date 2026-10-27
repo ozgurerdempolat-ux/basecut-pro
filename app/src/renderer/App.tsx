@@ -3,6 +3,8 @@ import { Clip, clipEnd, sequenceDuration, sourceTimeAt } from '../core/model';
 import * as ops from '../core/ops';
 import { Dialogs } from './Dialogs';
 import { ContextMenuHost } from './ContextMenu';
+import { Home } from './Home';
+import { relinkOffline } from './store';
 import { comboOf, eventFor, remap } from './keymap';
 import { flattenMulticam, nestSelection, switchAngle } from './multicam';
 import { ExportMode } from './ExportMode';
@@ -21,6 +23,7 @@ const TOOL_KEYS: Record<string, Tool> = { v: 'select', a: 'trackSelect', b: 'rip
 
 export function App() {
   const mode = useStore((s) => s.mode);
+  const toolTip = useStore((s) => s.toolTip);
   const project = useStore((s) => s.project);
   const dirty = useStore((s) => s.dirty);
   const jobs = useStore((s) => s.jobs);
@@ -116,6 +119,7 @@ export function App() {
 
       <div className="statusbar">
         <span>{Object.keys(project.media).length} medya · {Object.keys(activeSeq().clips).length} klip</span>
+        {toolTip && <span className="status-tip">{toolTip}</span>}
         <span className="grow" />
         <div className="jobs">
           {activeJobs.map((j) => (
@@ -135,6 +139,7 @@ export function App() {
       </div>
       <Dialogs />
       <ContextMenuHost />
+      <Home />
     </div>
   );
 }
@@ -188,6 +193,9 @@ export function runCommand(c: string) {
     case 'select-all': useStore.setState({ selection: Object.keys(seq.clips) }); return;
     case 'deselect': useStore.setState({ selection: [] }); return;
     case 'shortcuts': useStore.setState({ dialog: { kind: 'shortcuts' } }); return;
+    case 'prefs': useStore.setState({ dialog: { kind: 'prefs' } }); return;
+    case 'relink': void relinkOffline(); return;
+    case 'home': useStore.setState({ home: true }); return;
     case 'about': useStore.setState({ dialog: { kind: 'about' } }); return;
     case 'speed': useStore.setState({ dialog: { kind: 'speed' } }); return;
     case 'toggle-link': {

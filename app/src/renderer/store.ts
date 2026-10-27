@@ -1,3 +1,4 @@
+import { prefs } from './prefs';
 import { produce } from 'immer';
 import { create } from 'zustand';
 import {
@@ -31,6 +32,10 @@ export interface State {
   selMask: string | null;
   /** program monitor shows the multicam angle grid */
   multicamView: boolean;
+  /** live value while dragging (shown in the status bar) */
+  toolTip: string | null;
+  /** start screen (recent projects) */
+  home: boolean;
   tool: Tool;
   mode: Mode;
   snap: boolean;
@@ -57,7 +62,7 @@ export interface State {
   toasts: Toast[];
   sys: SystemInfo | null;
   clipboard: Clip[] | null;
-  dialog: null | { kind: 'speed' | 'sequence' | 'shortcuts' | 'about' | 'recovery' | 'attributes' | 'reframe' | 'multicam'; data?: unknown };
+  dialog: null | { kind: 'speed' | 'sequence' | 'shortcuts' | 'about' | 'recovery' | 'attributes' | 'reframe' | 'multicam' | 'prefs'; data?: unknown };
 }
 
 const initialProject = (() => {
@@ -80,6 +85,8 @@ export const useStore = create<State>(() => ({
   selTransition: null,
   selMask: null,
   multicamView: false,
+  toolTip: null,
+  home: true,
   tool: 'select',
   mode: 'edit',
   snap: true,
@@ -238,6 +245,7 @@ export function mediaFromProbe(p: ProbeResult): MediaItem {
 
 export async function importPaths(paths: string[], opts: { createSequence?: boolean } = {}) {
   if (!paths.length || !window.kurgu) return [];
+  set({ home: false });
   const results = await window.kurgu.probe(paths);
   const items: MediaItem[] = [];
   const failed: string[] = [];
@@ -272,7 +280,7 @@ export async function importPaths(paths: string[], opts: { createSequence?: bool
       let at = sequenceDuration(s);
       const t = ops.targetTracks(s);
       for (const m of fresh) {
-        const dur = m.kind === 'image' ? 5 : m.duration;
+        const dur = m.kind === 'image' ? prefs().stillSec : m.duration;
         ops.overwriteEdit(s, { media: m, srcIn: 0, srcOut: dur }, at, t.video ?? s.tracks.find((x) => x.kind === 'video')!.id, t.audio ?? s.tracks.find((x) => x.kind === 'audio')!.id);
         at += Math.round(dur * s.fps);
       }
@@ -347,10 +355,13 @@ export async function saveProject(as = false) {
   }
 }
 
-export async function openProject() {
-  const r = await window.kurgu.openProject();
-  if (!r) return;
-  loadProject(r.project, r.path);
+export async function openProject(path?: string) {
+  try {
+    const r = await window.kurgu.openProject(path);
+    if (!r) return;
+    loadProject(r.project, r.path);
+    set({ home: false });
+  } catch (e) { toast((e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'error'); }
 }
 
 export function loadProject(project: Project, path: string | null) {
@@ -358,8 +369,9 @@ export function loadProject(project: Project, path: string | null) {
   project = produce(project, (d) => { for (const m of Object.values(d.media)) if (m.kind === 'image' && !Number.isFinite(m.duration as number)) m.duration = Infinity; });
   set({ project, projectPath: path, past: [], future: [], selection: [], dirty: false, preview: null, sourceMediaId: null });
   for (const m of Object.values(project.media)) void loadAssets(m);
-  void window.kurgu.pathExists(Object.values(project.media).map((m) => m.path)).then((exists) => {
-    const offline = Object.values(project.media).filter((_, i) => !exists[i]);
+  const onDisk = Object.values(project.media).filter((m) => m.synthetic?.type !== 'multicam' && m.synthetic?.type !== 'nest');
+  void window.kurgu.pathExists(onDisk.map((m) => m.path)).then((exists) => {
+    const offline = onDisk.filter((_, i) => !exists[i]);
     if (offline.length) {
       set((s) => ({ project: produce(s.project, (d) => { for (const m of offline) d.media[m.id].online = false; }) }));
       toast(`${offline.length} medya dosyası çevrimdışı (bulunamadı)`, 'error');
@@ -377,4 +389,21 @@ export function newProject() {
 
 declare global {
   interface Window { kurgu: import('../shared/ipc').KurguApi }
+}
+
+// ------------------------------------------------------------------ relink offline media
+
+/** find offline media by file name in a folder the user picks (searches sub-folders) */
+export async function relinkOffline(only?: string[]) {
+  const st = S();
+  const off = Object.values(st.project.media).filter((m) => !m.online && m.path && (!only || only.includes(m.id)));
+  if (!off.length) { toast('Çevrimdışı medya yok', 'info'); return; }
+  const base = (p: string) => p.split(/[\\/]/).pop() ?? p;
+  const found = await window.kurgu.relinkSearch(off.map((m) => base(m.path)));
+  if (!found) return;
+  const fixed = off.filter((m) => found[base(m.path).toLowerCase()]);
+  if (!fixed.length) { toast('Bu klasörde eksik dosyaların hiçbiri bulunamadı', 'error'); return; }
+  editProject(`Medyayı yeniden bağla (${fixed.length})`, (p) => { for (const m of fixed) { p.media[m.id].path = found[base(m.path).toLowerCase()]; p.media[m.id].online = true; } });
+  for (const m of fixed) void loadAssets(S().project.media[m.id]);
+  toast(`${fixed.length}/${off.length} medya yeniden bağlandı`, fixed.length === off.length ? 'success' : 'info');
 }

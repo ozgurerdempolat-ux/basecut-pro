@@ -1,3 +1,4 @@
+declare const __APP_VERSION__: string;
 import { BrowserWindow, Menu, app, dialog, ipcMain, net, protocol, shell, utilityProcess, UtilityProcess } from 'electron';
 import { execFile } from 'node:child_process';
 import { createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -137,7 +138,18 @@ function detectEncoders(): Promise<string[]> {
 async function systemInfo(): Promise<SystemInfo> {
   const mem = totalmem() / 1024 ** 3;
   const n = cpus().length;
-  return { platform: process.platform, cpus: n, totalMemGb: Math.round(mem * 10) / 10, lowSpec: mem < 8.5 || n <= 4, hwEncoders: await detectEncoders(), version: app.getVersion() };
+  return { platform: process.platform, cpus: n, totalMemGb: Math.round(mem * 10) / 10, lowSpec: mem < 8.5 || n <= 4, hwEncoders: await detectEncoders(), version: __APP_VERSION__ };
+}
+
+// ------------------------------------------------------------------ recent projects
+
+interface Recent { path: string; name: string; openedAt: number; sequences: number; media: number }
+const recentFile = () => join(app.getPath('userData'), 'recent.json');
+function readRecent(): Recent[] { try { return JSON.parse(readFileSync(recentFile(), 'utf8')) as Recent[]; } catch { return []; } }
+function writeRecent(list: Recent[]) { try { writeFileSync(recentFile(), JSON.stringify(list.slice(0, 20))); } catch { /* read-only profile */ } }
+function rememberRecent(path: string, p: Project) {
+  writeRecent([{ path, name: p.name, openedAt: Date.now(), sequences: Object.keys(p.sequences).length, media: Object.keys(p.media).length }, ...readRecent().filter((r) => r.path !== path)]);
+  try { app.addRecentDocument(path); } catch { /* not on every platform */ }
 }
 
 // ------------------------------------------------------------------ project files, journal, autosave
@@ -145,6 +157,7 @@ async function systemInfo(): Promise<SystemInfo> {
 let journalTimer: NodeJS.Timeout | null = null;
 let journalPending: Project | null = null;
 let lastAutosave = 0;
+let autosaveEveryMs = 120_000, autosaveKeep = 20;
 
 function writeAtomic(file: string, data: string) {
   const tmp = `${file}.tmp`;
@@ -158,13 +171,13 @@ function flushJournal() {
   journalPending = null;
   try {
     writeAtomic(recoveryFile(), data);
-    // rolling autosaves: one every 2 minutes, keep 20
-    if (Date.now() - lastAutosave > 120_000) {
+    // rolling autosaves (Preferences: interval and how many to keep)
+    if (autosaveEveryMs > 0 && Date.now() - lastAutosave > autosaveEveryMs) {
       lastAutosave = Date.now();
       mkdirSync(autosaveDir(), { recursive: true });
       writeFileSync(join(autosaveDir(), `autosave-${new Date().toISOString().replace(/[:.]/g, '-')}.basecut`), data);
       const files = readdirSync(autosaveDir()).filter((f) => f.endsWith('.basecut')).sort();
-      for (const f of files.slice(0, Math.max(0, files.length - 20))) unlinkSync(join(autosaveDir(), f));
+      for (const f of files.slice(0, Math.max(0, files.length - autosaveKeep))) unlinkSync(join(autosaveDir(), f));
     }
   } catch { /* disk full etc. — never crash the app over a journal */ }
 }
@@ -205,6 +218,8 @@ function buildMenu() {
       { label: 'Farklı Kaydet…', accelerator: 'CmdOrCtrl+Shift+S', click: cmd('save-as') },
       { type: 'separator' },
       { label: 'İçe Aktar…', accelerator: 'CmdOrCtrl+I', click: cmd('import') },
+      { label: 'Çevrimdışı Medyayı Bağla…', click: cmd('relink') },
+      { label: 'Başlangıç Ekranı', click: cmd('home') },
       { label: 'Dışa Aktar…', accelerator: 'CmdOrCtrl+M', click: cmd('export') },
       { label: 'Kareyi Dışa Aktar', accelerator: 'CmdOrCtrl+Shift+E', click: cmd('export-frame') },
       { type: 'separator' },
@@ -222,6 +237,7 @@ function buildMenu() {
       { label: 'Seçimi Kaldır', accelerator: 'CmdOrCtrl+Shift+A', click: cmd('deselect') },
       { type: 'separator' },
       { label: 'Klavye Kısayolları…', accelerator: 'CmdOrCtrl+Alt+K', click: cmd('shortcuts') },
+      { label: 'Tercihler…', accelerator: 'CmdOrCtrl+,', click: cmd('prefs') },
     ] },
     { label: 'Klip', submenu: [
       { label: 'Hız/Süre…', accelerator: 'CmdOrCtrl+R', click: cmd('speed') },
@@ -313,14 +329,87 @@ function registerIpc() {
     }
     if (existsSync(target)) { try { writeFileSync(`${target}.bak`, readFileSync(target)); } catch { /* ignore */ } }
     writeAtomic(target, JSON.stringify(project, null, 1));
+    rememberRecent(target, project);
     return target;
   });
-  ipcMain.handle('openProject', async () => {
-    const r = await dialog.showOpenDialog(win!, { title: 'Proje aç', properties: ['openFile'], filters: [{ name: 'BaseCut Projesi', extensions: ['basecut', 'kurgu'] }] });
-    if (r.canceled || !r.filePaths[0]) return null;
-    const project = JSON.parse(readFileSync(r.filePaths[0], 'utf8')) as Project;
+  ipcMain.handle('openProject', async (_e, given?: string) => {
+    let file = given;
+    if (!file) {
+      const r = await dialog.showOpenDialog(win!, { title: 'Proje aç', properties: ['openFile'], filters: [{ name: 'BaseCut Projesi', extensions: ['basecut', 'kurgu'] }] });
+      if (r.canceled || !r.filePaths[0]) return null;
+      file = r.filePaths[0];
+    }
+    if (!existsSync(file)) throw new Error('Proje dosyası bulunamadı (taşınmış veya silinmiş olabilir)');
+    const project = JSON.parse(readFileSync(file, 'utf8')) as Project;
     if (project.format !== 'kurgu-project') throw new Error('Bu bir BaseCut projesi değil');
-    return { project, path: r.filePaths[0] };
+    rememberRecent(file, project);
+    return { project, path: file };
+  });
+  ipcMain.handle('setPrefs', (_e, p: { autosaveMin: number; autosaveKeep: number; uiScale: number }) => {
+    autosaveEveryMs = Math.max(0, p.autosaveMin) * 60_000;
+    autosaveKeep = Math.max(1, Math.min(200, Math.round(p.autosaveKeep)));
+    if (win && p.uiScale) win.webContents.setZoomFactor(Math.max(0.6, Math.min(2, p.uiScale / 100)));
+  });
+  ipcMain.handle('openAutosaves', () => { mkdirSync(autosaveDir(), { recursive: true }); void shell.openPath(autosaveDir()); });
+  ipcMain.handle('relinkSearch', async (_e, names: string[]) => {
+    // pick a folder, then find the missing files by name anywhere below it
+    const r = await dialog.showOpenDialog(win!, { title: 'Eksik medyanın olduğu klasörü seçin', properties: ['openDirectory'] });
+    if (r.canceled || !r.filePaths[0]) return null;
+    const want = new Set(names.map((n) => n.toLowerCase()));
+    const found: Record<string, string> = {};
+    let visited = 0;
+    const walk = (d: string, depth: number) => {
+      if (depth > 8 || visited > 200_000 || Object.keys(found).length === want.size) return;
+      let entries: string[] = [];
+      try { entries = readdirSync(d); } catch { return; }
+      for (const n of entries) {
+        visited++;
+        const p = join(d, n);
+        let st; try { st = statSync(p); } catch { continue; }
+        if (st.isDirectory()) { if (!n.startsWith('.') && n !== 'node_modules') walk(p, depth + 1); }
+        else if (want.has(n.toLowerCase()) && !found[n.toLowerCase()]) found[n.toLowerCase()] = p;
+      }
+    };
+    walk(r.filePaths[0], 0);
+    return found;
+  });
+  ipcMain.handle('checkUpdate', async () => {
+    // GitHub releases of the public repo; every main-branch build is a release
+    try {
+      const r = await net.fetch('https://api.github.com/repos/ozgurerdempolat-ux/basecut-pro/releases/latest', { headers: { 'User-Agent': 'BaseCut-Pro', Accept: 'application/vnd.github+json' } });
+      if (!r.ok) return null;
+      const j = await r.json() as { tag_name: string; html_url: string; name: string };
+      const latest = j.tag_name.replace(/^v/, '').split('-')[0];
+      const newer = (a: string, b: string) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0); } return false; };
+      return { latest, current: __APP_VERSION__, url: j.html_url, newer: newer(latest, __APP_VERSION__) };
+    } catch { return null; }
+  });
+  ipcMain.handle('openExternal', (_e, url: string) => { if (/^https:\/\/(github\.com|thebasesocial\.com)\//.test(url)) void shell.openExternal(url); });
+  ipcMain.handle('recentProjects', () => readRecent().filter((r) => existsSync(r.path)));
+  ipcMain.handle('forgetRecent', (_e, path: string) => { writeRecent(readRecent().filter((r) => r.path !== path)); });
+  ipcMain.handle('cacheInfo', () => {
+    const dir = cacheDir();
+    let bytes = 0, files = 0;
+    const walk = (d: string) => { for (const n of existsSync(d) ? readdirSync(d) : []) { const p = join(d, n); try { const st = statSync(p); if (st.isDirectory()) walk(p); else { bytes += st.size; files++; } } catch { /* gone */ } } };
+    walk(dir);
+    return { path: dir, bytes, files };
+  });
+  ipcMain.handle('clearCache', (_e, keepGenerated: boolean) => {
+    // proxies, filmstrips, stabiliser renders… are all re-creatable; titles/masks (generated/) are kept by default
+    const dir = cacheDir();
+    let freed = 0;
+    const walk = (d: string, top: boolean) => {
+      for (const n of existsSync(d) ? readdirSync(d) : []) {
+        const p = join(d, n);
+        try {
+          const st = statSync(p);
+          if (st.isDirectory()) { if (top && keepGenerated && n === 'generated') continue; walk(p, false); }
+          else { freed += st.size; unlinkSync(p); }
+        } catch { /* in use */ }
+      }
+    };
+    walk(dir, true);
+    return freed;
   });
   ipcMain.on('journal', (_e, project: Project) => {
     journalPending = project;

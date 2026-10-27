@@ -98,7 +98,17 @@ export interface KurguApi {
   onJob(cb: (p: JobProgress) => void): () => void;
   chooseExportPath(defaultName: string, ext: string): Promise<string | null>;
   saveProject(project: Project, path: string | null): Promise<string | null>;
-  openProject(): Promise<{ project: Project; path: string } | null>;
+  openProject(path?: string): Promise<{ project: Project; path: string } | null>;
+  setPrefs(p: { autosaveMin: number; autosaveKeep: number; uiScale: number }): Promise<void>;
+  openAutosaves(): Promise<void>;
+  /** choose a folder and find files by (case-insensitive) name below it: lower-case name → path */
+  relinkSearch(names: string[]): Promise<Record<string, string> | null>;
+  checkUpdate(): Promise<{ latest: string; current: string; url: string; newer: boolean } | null>;
+  openExternal(url: string): Promise<void>;
+  recentProjects(): Promise<{ path: string; name: string; openedAt: number; sequences: number; media: number }[]>;
+  forgetRecent(path: string): Promise<void>;
+  cacheInfo(): Promise<{ path: string; bytes: number; files: number }>;
+  clearCache(keepGenerated: boolean): Promise<number>;
   journal(project: Project): void;
   recover(): Promise<{ project: Project; savedAt: number } | null>;
   clearRecovery(): Promise<void>;

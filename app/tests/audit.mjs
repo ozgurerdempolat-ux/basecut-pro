@@ -6,6 +6,8 @@ const page = await app.firstWindow();
 await page.setViewportSize({ width: Number(w), height: Number(h) });
 await page.waitForSelector('.timeline');
 await page.evaluate(() => window.__kurgu.store.useStore.setState({ dialog: null, toasts: [] }));
+await page.screenshot({ path: join(out, `a00-home-${w}.png`) });
+await page.evaluate(() => window.__kurgu.store.useStore.setState({ home: false }));
 await page.screenshot({ path: join(out, `a0-empty-${w}.png`) });
 await page.evaluate((p) => window.__kurgu.store.importPaths(p, { createSequence: true }), ['kamera-1.mp4', 'logo.png', 'muzik.wav'].map((f) => join(media, f)));
 await page.waitForTimeout(3000);
