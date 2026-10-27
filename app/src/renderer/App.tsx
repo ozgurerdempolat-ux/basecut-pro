@@ -4,7 +4,7 @@ import * as ops from '../core/ops';
 import { Dialogs } from './Dialogs';
 import { ContextMenuHost } from './ContextMenu';
 import { Home } from './Home';
-import { relinkOffline } from './store';
+import { droppedPaths, proxyEverything, relinkOffline } from './store';
 import { comboOf, eventFor, remap } from './keymap';
 import { flattenMulticam, nestSelection, switchAngle } from './multicam';
 import { ExportMode } from './ExportMode';
@@ -33,6 +33,24 @@ export function App() {
   const wsRef = useRef<HTMLDivElement>(null);
 
   // boot: system info, recovery, job events, menu commands
+  // files dropped anywhere else in the window (monitors, panels' empty space): import them,
+  // and into an empty sequence put them on the timeline; never let the window navigate to the file
+  useEffect(() => {
+    const over = (e: DragEvent) => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault(); };
+    const drop = (e: DragEvent) => {
+      if (!e.dataTransfer?.types.includes('Files')) return;
+      if (e.defaultPrevented) return; // a panel / the timeline already took it (React runs before window listeners)
+      e.preventDefault();
+      const paths = droppedPaths(e.dataTransfer);
+      if (!paths.length) return;
+      const empty = Object.keys(activeSeq().clips).length === 0;
+      void importPaths(paths, { createSequence: empty });
+    };
+    window.addEventListener('dragover', over);
+    window.addEventListener('drop', drop);
+    return () => { window.removeEventListener('dragover', over); window.removeEventListener('drop', drop); };
+  }, []);
+
   useEffect(() => {
     void window.kurgu.systemInfo().then((sys) => {
       useStore.setState({ sys, playbackRes: sys.lowSpec ? 0.5 : 1 });
@@ -94,7 +112,10 @@ export function App() {
         <div className="spacer" />
         {sys?.lowSpec && <span className="pill warn" title="Zayıf donanım algılandı">Hafif mod</span>}
         <label className="check pill" title="Önizlemede hafif proxy dosyalarını kullan (export her zaman orijinalden)">
-          <input type="checkbox" checked={useProxies} onChange={(e) => useStore.setState({ useProxies: e.target.checked })} /> Proxy
+          <input type="checkbox" checked={useProxies} onChange={(e) => {
+            if (e.target.checked) { const n = proxyEverything(); useStore.setState({ useProxies: true }); if (n) toast(`${n} video için proxy hazırlanıyor (arka planda). Export yine orijinal kalitede.`, 'info'); }
+            else useStore.setState({ useProxies: false });
+          }} /> Proxy
         </label>
         <button className="btn small" onClick={() => runCommand('import')}>{I.import} İçe aktar</button>
         <button className="btn small primary" onClick={() => useStore.setState({ mode: 'export' })}>{I.exportI} Dışa aktar</button>

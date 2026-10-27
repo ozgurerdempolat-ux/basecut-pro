@@ -1,7 +1,7 @@
 // Start screen: recent projects, new / open / import, update notice.
 import { useEffect, useState } from 'react';
 import { I } from './icons';
-import { importPaths, newProject, openProject, useStore } from './store';
+import { droppedPaths, importPaths, newProject, openProject, useStore } from './store';
 
 type Recent = { path: string; name: string; openedAt: number; sequences: number; media: number };
 
@@ -19,7 +19,7 @@ export function Home() {
   return (
     <div className={`home ${over ? 'over' : ''}`}
       onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setOver(true); } }} onDragLeave={() => setOver(false)}
-      onDrop={async (e) => { e.preventDefault(); setOver(false); const paths = [...e.dataTransfer.files].map((f) => (f as File & { path?: string }).path ?? '').filter(Boolean); if (paths.length) { close(); await importPaths(paths, { createSequence: true }); } }}>
+      onDrop={async (e) => { e.preventDefault(); setOver(false); const paths = droppedPaths(e.dataTransfer); if (paths.length) { close(); await importPaths(paths, { createSequence: true }); } }}>
       <div className="home-card">
         <div className="home-head">
           <div className="home-logo">{I.play}</div>

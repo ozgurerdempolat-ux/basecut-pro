@@ -61,7 +61,7 @@ interface FFStream { codec_type: string; codec_name: string; width?: number; hei
 async function probe(path: string): Promise<ProbeResult> {
   if (!existsSync(path)) throw new Error('Dosya bulunamadı');
   const raw = await run(FFPROBE, ['-v', 'error', '-show_format', '-show_streams', '-of', 'json', path]);
-  const j = JSON.parse(raw.toString()) as { streams: FFStream[]; format: { duration?: string; format_name?: string } };
+  const j = JSON.parse(raw.toString()) as { streams: FFStream[]; format: { duration?: string; format_name?: string; bit_rate?: string } };
   const ext = extname(path).toLowerCase();
   const v = j.streams.find((s) => s.codec_type === 'video' && !s.disposition?.attached_pic);
   const a = j.streams.find((s) => s.codec_type === 'audio');
@@ -77,11 +77,20 @@ async function probe(path: string): Promise<ProbeResult> {
     if (a && !BROWSER_AUDIO.has(a.codec_name)) needsProxy = true;
   }
   if (!v && !a) throw new Error('Desteklenmeyen dosya');
+  const bitrate = Number(j.format.bit_rate ?? 0) || 0;
+  const px = (v?.width ?? 0) * (v?.height ?? 0);
+  const heavy = !isImage && !!v && (
+    px > 2_100_000 // above 1080p
+    || ['hevc', 'av1', 'vp9', 'prores', 'dnxhd'].includes(v.codec_name)
+    || /10le|12le|422|444/.test(v.pix_fmt ?? '')
+    || bitrate > 25_000_000
+    || (px > 900_000 && fps > 35) // 1080p50/60, 720p+ high frame rate
+  );
   return {
     path, name: basename(path), kind: isImage ? 'image' : v ? 'video' : 'audio', duration,
     fps: Number.isFinite(fps) && fps > 0 && fps < 1000 ? fps : 30,
     width: v?.width ?? 0, height: v?.height ?? 0, hasVideo: !!v, hasAudio: !!a,
-    audioChannels: a?.channels ?? 0, sampleRate: Number(a?.sample_rate ?? 0), codec: v?.codec_name ?? a?.codec_name ?? '', needsProxy,
+    audioChannels: a?.channels ?? 0, sampleRate: Number(a?.sample_rate ?? 0), codec: v?.codec_name ?? a?.codec_name ?? '', needsProxy, heavy, bitrate,
   };
 }
 
@@ -141,19 +150,29 @@ async function proxy(path: string, jobId: string): Promise<string> {
   const out = join(CACHE, `${key}-proxy.mp4`);
   if (existsSync(out)) return out;
   const tmp = out.replace('.mp4', '.part.mp4');
-  const args = ['-v', 'error', '-y', '-nostdin', '-progress', 'pipe:1', '-i', path];
-  if (info.hasVideo) args.push('-vf', 'scale=-2:min(540\\,ih),format=yuv420p', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '24', '-g', '12', '-bf', '0');
+  // Built for weak machines: hardware decode when there is one, fast scaler, and an
+  // edit-friendly file (540p, keyframe every 12 frames, no B-frames, CABAC off → cheap to decode and seek)
+  const args = ['-v', 'error', '-y', '-nostdin', '-progress', 'pipe:1', '-hwaccel', 'auto', '-i', path];
+  if (info.hasVideo) args.push('-vf', 'scale=-2:min(540\\,ih):flags=fast_bilinear,format=yuv420p', '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'fastdecode', '-crf', '23', '-g', '12', '-bf', '0', '-threads', '0');
   else args.push('-vn');
   if (info.hasAudio) args.push('-c:a', 'aac', '-b:a', '128k', '-ac', '2');
   else args.push('-an');
   args.push('-movflags', '+faststart', tmp);
-  await run(FFMPEG, args, {
+  const opts = {
     jobId,
-    onStdout: (s) => {
+    onStdout: (s: string) => {
       const m = /out_time_us=(\d+)/.exec(s);
       if (m && info.duration > 0) send({ id: jobId, progress: Math.min(0.99, Number(m[1]) / 1e6 / info.duration) });
     },
-  });
+  };
+  try { await run(FFMPEG, args, opts); }
+  catch (e) {
+    // a broken GPU driver can make hardware decode fail: do it in software
+    if ((e as Error).message === 'İptal edildi') throw e;
+    const i = args.indexOf('-hwaccel');
+    args.splice(i, 2);
+    await run(FFMPEG, args, opts);
+  }
   renameSync(tmp, out);
   return out;
 }

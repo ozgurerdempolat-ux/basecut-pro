@@ -15,6 +15,7 @@ import { AUDIO_TRANSITIONS } from '../core/audiofx';
 import { player } from './player';
 import {
   activeSeq, cancelPreview, commitPreview, committedSeq, edit, previewEdit, selectClips, setPlayhead, toast, useStore,
+  droppedPaths,
 } from './store';
 
 const HEADER_W = 168;
@@ -409,6 +410,9 @@ export function Timeline() {
       }
       return;
     }
+    // read everything off the DataTransfer now: it is emptied after the first await
+    const dropped = droppedPaths(e.dataTransfer);
+    const shiftDrop = e.shiftKey, insertDrop = e.ctrlKey || e.metaKey;
     const raw = e.dataTransfer.getData('application/x-kurgu-media');
     let mediaIds: Id[] = [];
     let range: { in: number; out: number } | null = null;
@@ -416,13 +420,13 @@ export function Timeline() {
       const p = JSON.parse(raw) as { ids: Id[]; in?: number; out?: number };
       mediaIds = p.ids;
       if (p.in !== undefined && p.out !== undefined) range = { in: p.in, out: p.out };
-    } else if (e.dataTransfer.files.length) {
+    } else if (dropped.length) {
       const { importPaths } = await import('./store');
-      const paths = [...e.dataTransfer.files].map((x) => (x as File & { path?: string }).path ?? '').filter(Boolean);
-      mediaIds = (await importPaths(paths)).map((m) => m.id);
+      mediaIds = (await importPaths(dropped)).map((m) => m.id);
+      if (!mediaIds.length) toast('Bu dosyalar içe aktarılamadı', 'error');
     }
     if (!mediaIds.length) return;
-    const insert = e.ctrlKey || e.metaKey;
+    const insert = insertDrop;
     edit(insert ? 'Ekle' : 'Üzerine yaz', (s, media) => {
       let at = f;
       const target = li >= 0 ? lanes[li].track : null;
@@ -439,7 +443,7 @@ export function Timeline() {
         const srcIn = range?.in ?? m.markIn ?? 0;
         const srcOut = range?.out ?? m.markOut ?? (m.kind === 'image' ? prefs().stillSec : m.duration);
         const fn = insert ? ops.insertEdit : ops.overwriteEdit;
-        const created = fn(s, { media: m, srcIn, srcOut, video: !(target?.kind === 'audio' && e.shiftKey), audio: !(target?.kind === 'video' && e.shiftKey) }, at, v, a);
+        const created = fn(s, { media: m, srcIn, srcOut, video: !(target?.kind === 'audio' && shiftDrop), audio: !(target?.kind === 'video' && shiftDrop) }, at, v, a);
         at += s.clips[created[0]].duration;
       }
     });

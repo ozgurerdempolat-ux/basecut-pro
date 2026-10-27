@@ -13,7 +13,7 @@ import { SyntheticKind, createSynthetic } from './synthetic';
 import { mediaMenu } from './menus';
 import { createTitle, updateTitle } from './titles';
 import { TITLE_FONTS, TITLE_PRESETS, TitleData } from '../core/title';
-import { Tool, activeSeq, commitPreview, committedSeq, edit, editProject, importPaths, previewEdit, setPlayhead, useStore } from './store';
+import { Tool, activeSeq, droppedPaths, commitPreview, committedSeq, edit, editProject, importPaths, previewEdit, setPlayhead, useStore } from './store';
 
 export const LABELS: Record<LabelColor, string> = {
   violet: '#8f6bd8', iris: '#5b78e5', caribbean: '#22b8a0', lavender: '#b796e8', cerulean: '#2f9ad6', forest: '#4c9a4c',
@@ -67,7 +67,7 @@ export function ProjectPanel() {
       onDragLeave={() => setOver(false)}
       onDrop={async (e) => {
         e.preventDefault(); setOver(false);
-        const paths = [...e.dataTransfer.files].map((f) => (f as File & { path?: string }).path ?? '').filter(Boolean);
+        const paths = droppedPaths(e.dataTransfer);
         if (paths.length) await importPaths(paths);
       }}>
       <div className="panel-tabs" ref={tabsRef} onWheel={(e) => { if (tabsRef.current && Math.abs(e.deltaY) > Math.abs(e.deltaX)) tabsRef.current.scrollLeft += e.deltaY; }}>

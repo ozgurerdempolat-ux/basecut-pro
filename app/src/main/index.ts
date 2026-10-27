@@ -138,7 +138,7 @@ function detectEncoders(): Promise<string[]> {
 async function systemInfo(): Promise<SystemInfo> {
   const mem = totalmem() / 1024 ** 3;
   const n = cpus().length;
-  return { platform: process.platform, cpus: n, totalMemGb: Math.round(mem * 10) / 10, lowSpec: mem < 8.5 || n <= 4, hwEncoders: await detectEncoders(), version: __APP_VERSION__ };
+  return { platform: process.platform, cpus: n, totalMemGb: Math.round(mem * 10) / 10, lowSpec: mem < 12 || n <= 4, hwEncoders: await detectEncoders(), version: __APP_VERSION__ };
 }
 
 // ------------------------------------------------------------------ recent projects

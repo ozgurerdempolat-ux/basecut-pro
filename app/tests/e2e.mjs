@@ -908,6 +908,62 @@ if (existsSync(outFile)) {
   await page.click('.modal button:has-text("Kapat")');
 }
 
+// ---- drop real files from the OS onto the timeline; heavy media get proxies on their own
+{
+  const big = join(outDir, 'heavy-4k.mp4');
+  if (!existsSync(big)) execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=3840x2160:r=30:d=2', '-f', 'lavfi', '-i', 'sine=f=500:d=2', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', big]);
+  await page.click('.modes button:has-text("Kurgu")').catch(() => {});
+  await page.evaluate(() => { window.__kurgu.store.useStore.setState({ dialog: null, home: false }); document.querySelector('.tl-scroll').scrollLeft = 0; });
+  // real File objects (with disk paths) come from a file input, like Explorer/Finder hands them over
+  await page.evaluate(() => { const i = document.createElement('input'); i.type = 'file'; i.id = '__dropsrc'; i.style.display = 'none'; document.body.appendChild(i); });
+  await page.setInputFiles('#__dropsrc', big);
+  const before = await page.evaluate(() => Object.keys(window.__kurgu.store.committedSeq().clips).length);
+  const lb = await (await page.$$('.lane.kind-video'))[0].boundingBox();
+  await page.evaluate(({ x, y }) => {
+    const dt = new DataTransfer();
+    for (const f of document.getElementById('__dropsrc').files) dt.items.add(f);
+    const el = document.elementFromPoint(x, y);
+    el.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt, clientX: x, clientY: y }));
+    el.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt, clientX: x, clientY: y }));
+  }, { x: lb.x + 30, y: lb.y + lb.height / 2 });
+  await page.waitForFunction((n) => Object.keys(window.__kurgu.store.committedSeq().clips).length > n, before, { timeout: 20000 }).catch(() => {});
+  const after = await page.evaluate(() => Object.keys(window.__kurgu.store.committedSeq().clips).length);
+  check('Explorer/Finder\'dan timeline\'a bırakılan video ekleniyor', after > before, `${before} → ${after} klip`);
+  const pinfo = await page.evaluate(async (p) => {
+    const st = window.__kurgu.store.useStore.getState();
+    const deadline = Date.now() + 60000;
+    while (!window.__kurgu.store.useStore.getState().proxies[p] && Date.now() < deadline) await new Promise((r) => setTimeout(r, 300));
+    const s2 = window.__kurgu.store.useStore.getState();
+    return { heavy: st.heavy[p], proxy: s2.proxies[p] ?? null };
+  }, big);
+  check('4K video ağır olarak algılandı ve proxy kendiliğinden yapıldı', pinfo.heavy === true && !!pinfo.proxy && existsSync(pinfo.proxy), JSON.stringify(pinfo));
+  if (pinfo.proxy) {
+    const h = Number(execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=height', '-of', 'csv=p=0', pinfo.proxy]).toString());
+    check('Proxy hafif (540p)', h === 540, `${h}p`);
+  }
+  // Proxy switch: off then on builds proxies for every video
+  await page.evaluate(() => window.__kurgu.store.useStore.setState({ useProxies: false }));
+  await page.click('label:has-text("Proxy") input');
+  const all = await page.evaluate(async () => {
+    const deadline = Date.now() + 120000;
+    const pending = () => { const st = window.__kurgu.store.useStore.getState(); return Object.values(st.project.media).filter((m) => m.kind === 'video' && !m.synthetic && m.online !== false && !st.proxies[m.path]).length; };
+    while (pending() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 500));
+    return { pending: pending(), use: window.__kurgu.store.useStore.getState().useProxies };
+  });
+  check('Proxy düğmesi tüm videolar için proxy hazırlıyor', all.pending === 0 && all.use, JSON.stringify(all));
+  // adaptive playback: simulated slow machine → lower preview resolution
+  const res = await page.evaluate(() => {
+    const k = window.__kurgu;
+    k.store.useStore.setState({ playing: true, rate: 1, playbackRes: 1 });
+    k.player.fpsMeter.value = 5; k.player.adapted = false; k.player.slowSeconds = 0;
+    k.player.watchPerformance(30); k.player.watchPerformance(30);
+    const r = k.store.useStore.getState().playbackRes;
+    k.store.useStore.setState({ playing: false });
+    return r;
+  });
+  check('Oynatma takılınca önizleme kendiliğinden hafifliyor', res === 0.5, `çözünürlük ${res}`);
+}
+
 // ---- crash isolation: kill the worker mid-job and keep editing
 const pid = await app.evaluate(async ({ app }) => app.getAppMetrics().find((m) => m.type === 'Utility' && /Kurgu Media Worker|NodeService/.test(m.serviceName ?? m.name ?? ''))?.pid ?? null);
 if (pid) {

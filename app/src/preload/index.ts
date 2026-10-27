@@ -1,7 +1,9 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { KurguApi } from '../shared/ipc';
 
 const api: KurguApi = {
+  // Electron removed File.path: files dropped from Explorer/Finder are resolved here
+  pathForFile: (f) => { try { return webUtils.getPathForFile(f); } catch { return ''; } },
   openFiles: () => ipcRenderer.invoke('openFiles'),
   probe: (paths) => ipcRenderer.invoke('probe', paths),
   assets: (path) => ipcRenderer.invoke('assets', path),

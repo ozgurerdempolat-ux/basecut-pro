@@ -4,7 +4,7 @@
 // a WebAudio graph for gain above 0 dB and metering.
 
 import { Clip, MediaItem, Sequence, clipEnd, evalParam, hasRemap, remapAdvance, remapSpeedAt, sequenceDuration, sourceTimeAt } from '../core/model';
-import { activeSeq, committedSeq, playbackPath, setPlayhead, useStore } from './store';
+import { activeSeq, committedSeq, playbackPath, proxyEverything, setPlayhead, toast, useStore } from './store';
 import { drawCaptions } from './Captions';
 import { grader } from './grader';
 import { isNeutral } from '../core/color';
@@ -142,8 +142,28 @@ class Player {
     this.onFrame?.(frame);
     const now = performance.now();
     this.fpsMeter.drawn++;
-    if (now - this.fpsMeter.last > 1000) { this.fpsMeter.value = this.fpsMeter.drawn; this.fpsMeter.drawn = 0; this.fpsMeter.last = now; }
+    if (now - this.fpsMeter.last > 1000) {
+      this.fpsMeter.value = this.fpsMeter.drawn; this.fpsMeter.drawn = 0; this.fpsMeter.last = now;
+      this.watchPerformance(seq.fps);
+    }
   };
+
+  /** adaptive playback: if the machine keeps dropping frames, lower the preview and build proxies (once) */
+  private slowSeconds = 0;
+  private adapted = false;
+  private watchPerformance(fps: number) {
+    const st = useStore.getState();
+    if (!st.playing || Math.abs(st.rate) !== 1) { this.slowSeconds = 0; return; }
+    if (this.fpsMeter.value >= fps * 0.75) { this.slowSeconds = 0; return; }
+    if (++this.slowSeconds < 2 || this.adapted) return;
+    this.adapted = true;
+    const lower = st.playbackRes === 1 ? 0.5 : 0.25;
+    if (st.playbackRes !== 0.25) useStore.setState({ playbackRes: lower });
+    const n = proxyEverything();
+    toast(n
+      ? `Oynatma takılıyordu: önizleme ${lower === 0.5 ? '1/2' : '1/4'} çözünürlüğe alındı ve ${n} video için hafif kopya (proxy) hazırlanıyor. Export her zaman orijinal kalitede.`
+      : `Oynatma takılıyordu: önizleme ${lower === 0.5 ? '1/2' : '1/4'} çözünürlüğe alındı. Export her zaman orijinal kalitede.`, 'info');
+  }
 
   private visualFor(c: Clip, m: MediaItem, override?: string): Visual | null {
     const path = override ?? playbackPath(m);

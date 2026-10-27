@@ -52,10 +52,14 @@ export interface State {
   rate: number; // J/K/L shuttle rate
   playbackRes: PlaybackRes;
   useProxies: boolean;
+  /** proxies were requested for everything (switch or slow playback) */
+  proxyAll: boolean;
 
   assets: Record<string, MediaAssets>;
   proxies: Record<string, string>; // media path → proxy path
   needsProxy: Record<string, boolean>;
+  /** media that decodes heavily (4K, HEVC, 10-bit, high bitrate…) */
+  heavy: Record<string, boolean>;
   jobs: Record<string, JobProgress>;
   /** bumps when background stabiliser status changes (re-render banners) */
   stabTick: number;
@@ -101,9 +105,11 @@ export const useStore = create<State>(() => ({
   rate: 1,
   playbackRes: 1,
   useProxies: true,
+  proxyAll: false,
   assets: {},
   proxies: {},
   needsProxy: {},
+  heavy: {},
   jobs: {},
   stabTick: 0,
   toasts: [],
@@ -255,7 +261,7 @@ export async function importPaths(paths: string[], opts: { createSequence?: bool
     if (existing) { items.push(existing); continue; }
     const m = mediaFromProbe(r);
     items.push(m);
-    set((s) => ({ needsProxy: { ...s.needsProxy, [r.path]: r.needsProxy } }));
+    set((s) => ({ needsProxy: { ...s.needsProxy, [r.path]: r.needsProxy }, heavy: { ...s.heavy, [r.path]: !!r.heavy } }));
   }
   const fresh = items.filter((m) => !S().project.media[m.id]);
   if (fresh.length) {
@@ -292,25 +298,74 @@ export async function importPaths(paths: string[], opts: { createSequence?: bool
 
 export async function loadAssets(m: MediaItem) {
   if (!m.path || m.synthetic?.type === 'multicam' || m.synthetic?.type === 'nest') return; // nothing on disk to analyse
+  // reopened projects: we still need to know how hard the file is to play
+  if (S().needsProxy[m.path] === undefined && m.online !== false) {
+    try {
+      const [r] = await window.kurgu.probe([m.path]);
+      if (r && !('error' in r)) set((s) => ({ needsProxy: { ...s.needsProxy, [m.path]: r.needsProxy }, heavy: { ...s.heavy, [m.path]: !!r.heavy } }));
+    } catch { /* offline */ }
+  }
+  if (wantsProxy(m)) void ensureProxy(m.path);
   try {
     const a = await window.kurgu.assets(m.path);
     set((s) => ({ assets: { ...s.assets, [m.path]: a } }));
   } catch { /* thumbnails are optional */ }
-  const st = S();
-  const big = m.kind === 'video' && m.height > 720;
-  if (st.needsProxy[m.path] || (st.sys?.lowSpec && big)) void ensureProxy(m.path);
 }
 
-export async function ensureProxy(path: string) {
-  if (S().proxies[path]) return S().proxies[path];
-  try {
-    const p = await window.kurgu.makeProxy(path);
-    set((s) => ({ proxies: { ...s.proxies, [path]: p } }));
-    return p;
-  } catch (e) {
-    toast(`Proxy oluşturulamadı: ${(e as Error).message}`, 'error');
-    return null;
+/**
+ * Proxy policy. The preview plays a light 540p copy; export always uses the originals.
+ *  - files the preview can't decode at all → always
+ *  - Preferences "Proxy: Açık" → every video
+ *  - "Otomatik" (default) → heavy files (4K, HEVC/AV1, 10-bit, >25 Mbps, 50/60p), every >720p
+ *    file on a weak computer, and anything once playback has started dropping frames
+ */
+export function wantsProxy(m: MediaItem): boolean {
+  const st = S();
+  if (m.kind !== 'video' || m.synthetic) return false;
+  if (st.needsProxy[m.path]) return true;
+  const mode = prefs().proxies;
+  if (mode === 'off') return false;
+  if (mode === 'on' || st.proxyAll) return true;
+  return !!st.heavy[m.path] || (!!st.sys?.lowSpec && m.height > 720);
+}
+
+const proxyWaiters = new Map<string, Promise<string | null>>();
+const proxyQueue: { path: string; resolve: (p: string | null) => void }[] = [];
+let proxyRunning = 0;
+
+function pumpProxies() {
+  const limit = S().sys?.lowSpec ? 1 : 2; // a weak machine stays usable while proxies build
+  while (proxyRunning < limit && proxyQueue.length) {
+    const job = proxyQueue.shift()!;
+    proxyRunning++;
+    window.kurgu.makeProxy(job.path)
+      .then((p) => { set((s) => ({ proxies: { ...s.proxies, [job.path]: p } })); job.resolve(p); })
+      .catch((e) => { toast(`Proxy oluşturulamadı: ${(e as Error).message}`, 'error'); job.resolve(null); })
+      .finally(() => { proxyRunning--; proxyWaiters.delete(job.path); pumpProxies(); });
   }
+}
+
+export function ensureProxy(path: string): Promise<string | null> {
+  const have = S().proxies[path];
+  if (have) return Promise.resolve(have);
+  let w = proxyWaiters.get(path);
+  if (!w) {
+    w = new Promise<string | null>((resolve) => { proxyQueue.push({ path, resolve }); });
+    proxyWaiters.set(path, w);
+    pumpProxies();
+  }
+  return w;
+}
+
+/** make proxies for every video in the project (Proxy switch, slow playback) */
+export function proxyEverything(reason?: string) {
+  const st = S();
+  const todo = Object.values(st.project.media).filter((m) => m.kind === 'video' && !m.synthetic && m.online !== false && !st.proxies[m.path]);
+  if (!todo.length) return 0;
+  set({ proxyAll: true, useProxies: true });
+  if (reason) toast(reason, 'info');
+  for (const m of todo) void ensureProxy(m.path);
+  return todo.length;
 }
 
 /** the file the preview should play: proxy if we need/want one */
@@ -406,4 +461,9 @@ export async function relinkOffline(only?: string[]) {
   editProject(`Medyayı yeniden bağla (${fixed.length})`, (p) => { for (const m of fixed) { p.media[m.id].path = found[base(m.path).toLowerCase()]; p.media[m.id].online = true; } });
   for (const m of fixed) void loadAssets(S().project.media[m.id]);
   toast(`${fixed.length}/${off.length} medya yeniden bağlandı`, fixed.length === off.length ? 'success' : 'info');
+}
+
+/** paths of files dropped from Explorer / Finder */
+export function droppedPaths(dt: DataTransfer): string[] {
+  return [...dt.files].map((f) => window.kurgu.pathForFile?.(f) || (f as File & { path?: string }).path || '').filter(Boolean);
 }

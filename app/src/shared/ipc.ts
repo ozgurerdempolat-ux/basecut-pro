@@ -17,6 +17,10 @@ export interface ProbeResult {
   codec: string;
   /** Chromium can't decode this directly (ProRes, DNx, some HEVC...) → needs a proxy for preview */
   needsProxy: boolean;
+  /** decodes heavily (4K, HEVC/AV1, 10-bit, high bitrate or frame rate): proxy it for smooth editing */
+  heavy?: boolean;
+  /** overall bitrate, bits per second (0 = unknown) */
+  bitrate?: number;
 }
 
 export interface MediaAssets {
@@ -124,6 +128,8 @@ export interface KurguApi {
   fontsDir(): Promise<string>;
   writeBinary(path: string, data: Uint8Array): Promise<string>;
   writeCache(name: string, data: Uint8Array): Promise<string>;
+  /** real disk path of a file dropped from the OS (Explorer / Finder) */
+  pathForFile(file: File): string;
   /** store a microphone recording (webm/opus from MediaRecorder) as WAV under Documents/BaseCut Pro/Seslendirmeler */
   saveRecording(name: string, data: Uint8Array): Promise<string>;
   /** ask the OS for microphone access (macOS); true when allowed */
